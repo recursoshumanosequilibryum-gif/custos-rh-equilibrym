@@ -1435,7 +1435,7 @@ table.styled thead th {
           <i class="ti ti-database" style="color:var(--teal);font-size:18px"></i>
           <div>
             <div class="card-title">Dados locais — Backup & Restauração</div>
-            <div class="card-sub">Seus dados são salvos automaticamente neste navegador</div>
+            <div class="card-sub">Seus dados são salvos automaticamente neste navegador e no Google Drive</div>
           </div>
         </div>
         <div class="card-body">
@@ -1443,23 +1443,44 @@ table.styled thead th {
             <i class="ti ti-device-floppy" style="font-size:28px;color:var(--teal)"></i>
             <div>
               <div style="font-size:13.5px;font-weight:600;color:var(--teal-dark)">Salvamento automático ativo</div>
-              <div style="font-size:12px;color:var(--teal-dark);opacity:0.8;margin-top:2px">Empresas, folhas e benefícios são salvos automaticamente neste navegador. Os dados persistem mesmo fechando o sistema.</div>
+              <div style="font-size:12px;color:var(--teal-dark);opacity:0.8;margin-top:2px">
+                Dados salvos no navegador instantaneamente. Se o Google Drive estiver conectado, um backup <strong>.json</strong> é enviado automaticamente para a pasta <strong>RH - Custos e Relatórios/2025/Backups</strong> a cada alteração.
+              </div>
             </div>
           </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <button class="btn btn-primary" onclick="exportarBackup()">
-              <i class="ti ti-download"></i> Exportar backup (.json)
-            </button>
-            <button class="btn btn-outline" onclick="document.getElementById('input-backup').click()">
-              <i class="ti ti-upload"></i> Restaurar backup
-            </button>
-            <input type="file" id="input-backup" accept=".json" style="display:none" onchange="importarBackup(event)">
-            <button class="btn btn-ghost" onclick="limparTodosDados()" style="margin-left:auto;color:var(--danger);border-color:var(--danger)">
-              <i class="ti ti-trash"></i> Apagar todos os dados
-            </button>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+            <div style="padding:14px 16px;background:var(--gray-50);border:1px solid var(--border);border-radius:8px">
+              <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:10px"><i class="ti ti-download"></i> Exportar</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <button class="btn btn-primary" onclick="exportarBackup()" style="justify-content:center">
+                  <i class="ti ti-file-download"></i> Baixar backup (.json)
+                </button>
+                <button class="btn btn-success" onclick="salvarBackupNoDrive(localStorage.getItem(STORAGE_KEY)||'{}')" style="justify-content:center">
+                  <i class="ti ti-brand-google-drive"></i> Salvar agora no Drive
+                </button>
+              </div>
+            </div>
+            <div style="padding:14px 16px;background:var(--gray-50);border:1px solid var(--border);border-radius:8px">
+              <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:10px"><i class="ti ti-upload"></i> Restaurar</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <button class="btn btn-outline" onclick="document.getElementById('input-backup').click()" style="justify-content:center">
+                  <i class="ti ti-file-upload"></i> Do computador (.json)
+                </button>
+                <button class="btn btn-outline" onclick="restaurarBackupDoDrive()" style="justify-content:center">
+                  <i class="ti ti-brand-google-drive"></i> Do Google Drive
+                </button>
+                <input type="file" id="input-backup" accept=".json" style="display:none" onchange="importarBackup(event)">
+              </div>
+            </div>
           </div>
+
+          <button class="btn btn-ghost" onclick="limparTodosDados()" style="color:var(--danger);border-color:var(--danger)">
+            <i class="ti ti-trash"></i> Apagar todos os dados locais
+          </button>
+
           <div style="margin-top:14px;padding:12px 14px;background:#FFF3E0;border-radius:8px;font-size:12.5px;color:#E65100">
-            <i class="ti ti-alert-triangle"></i> <strong>Importante:</strong> Os dados são salvos apenas neste navegador e computador. Para não perder nada, exporte o backup regularmente e salve também no Google Drive.
+            <i class="ti ti-alert-triangle"></i> <strong>Dica:</strong> Conecte o Google Drive para ativar o backup automático na nuvem. Assim seus dados ficam seguros mesmo se trocar de computador.
           </div>
         </div>
       </div>
@@ -3395,6 +3416,9 @@ window.addEventListener('load', () => {
 // ============================================================
 const STORAGE_KEY = 'equilibrym_rh_v1';
 
+// Timer para evitar múltiplos uploads simultâneos ao Drive
+let driveBackupTimer = null;
+
 function salvarDados() {
   try {
     const dados = {
@@ -3403,7 +3427,9 @@ function salvarDados() {
       beneficios: state.beneficios,
       salvadoEm:  new Date().toISOString()
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
+    const json = JSON.stringify(dados);
+    localStorage.setItem(STORAGE_KEY, json);
+
     // Mostra indicador "Salvo" por 2 segundos
     const ind = document.getElementById('salvo-indicator');
     if (ind) {
@@ -3411,8 +3437,130 @@ function salvarDados() {
       clearTimeout(ind._timer);
       ind._timer = setTimeout(() => ind.style.display = 'none', 2000);
     }
+
+    // Salva backup no Drive automaticamente (com debounce de 3s)
+    if (state.driveConectado && driveAccessToken) {
+      clearTimeout(driveBackupTimer);
+      driveBackupTimer = setTimeout(() => salvarBackupNoDrive(json), 3000);
+    }
   } catch(e) {
     console.warn('Erro ao salvar dados localmente:', e);
+  }
+}
+
+async function salvarBackupNoDrive(jsonStr) {
+  try {
+    const pastaNome = document.getElementById('drive-pasta')?.value || 'RH - Custos e Relatórios/2025';
+    const pastaBackup = pastaNome + '/Backups';
+    const folderId = await getOrCreateFolder(pastaBackup);
+
+    const agora = new Date();
+    const nomeArq = `backup_rh_${agora.getFullYear()}-${String(agora.getMonth()+1).padStart(2,'0')}-${String(agora.getDate()).padStart(2,'0')}.json`;
+
+    // Verifica se já existe backup do dia e deleta para substituir
+    const search = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=name='${nomeArq}'+and+'${folderId}'+in+parents+and+trashed=false&fields=files(id)`,
+      { headers: { Authorization: 'Bearer ' + driveAccessToken } }
+    ).then(r => r.json());
+
+    if (search.files && search.files.length > 0) {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${search.files[0].id}`, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + driveAccessToken }
+      });
+    }
+
+    // Faz upload do novo backup
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const metadata = { name: nomeArq, mimeType: 'application/json', parents: [folderId] };
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', blob);
+
+    await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + driveAccessToken },
+      body: form
+    });
+
+    // Atualiza indicador com ícone do Drive
+    const ind = document.getElementById('salvo-indicator');
+    if (ind) {
+      ind.innerHTML = '<i class="ti ti-brand-google-drive" style="font-size:14px"></i> Salvo no Drive';
+      ind.style.display = 'flex';
+      clearTimeout(ind._driveTimer);
+      ind._driveTimer = setTimeout(() => {
+        ind.style.display = 'none';
+        ind.innerHTML = '<i class="ti ti-check" style="font-size:14px"></i> Salvo';
+      }, 3000);
+    }
+
+  } catch(e) {
+    console.warn('Erro ao salvar backup no Drive:', e);
+  }
+}
+
+async function restaurarBackupDoDrive() {
+  if (!state.driveConectado || !driveAccessToken) {
+    notify('Conecte ao Google Drive primeiro.', 'error');
+    return;
+  }
+  try {
+    notify('Buscando backups no Drive...', 'info');
+    const pastaNome = (document.getElementById('drive-pasta')?.value || 'RH - Custos e Relatórios/2025') + '/Backups';
+
+    // Busca a pasta de backups
+    const searchPasta = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=name='Backups'+and+mimeType='application/vnd.google-apps.folder'+and+trashed=false&fields=files(id,name)`,
+      { headers: { Authorization: 'Bearer ' + driveAccessToken } }
+    ).then(r => r.json());
+
+    if (!searchPasta.files || !searchPasta.files.length) {
+      notify('Nenhum backup encontrado no Drive.', 'info');
+      return;
+    }
+
+    const folderId = searchPasta.files[0].id;
+
+    // Lista os backups disponíveis
+    const lista = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,createdTime)&orderBy=createdTime+desc`,
+      { headers: { Authorization: 'Bearer ' + driveAccessToken } }
+    ).then(r => r.json());
+
+    if (!lista.files || !lista.files.length) {
+      notify('Nenhum backup encontrado.', 'info');
+      return;
+    }
+
+    // Pega o mais recente
+    const maisRecente = lista.files[0];
+    const dt = new Date(maisRecente.createdTime).toLocaleDateString('pt-BR');
+
+    if (!confirm(`Restaurar backup "${maisRecente.name}" (${dt})?\n\nIsso vai substituir todos os dados atuais.`)) return;
+
+    // Baixa o arquivo
+    const conteudo = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${maisRecente.id}?alt=media`,
+      { headers: { Authorization: 'Bearer ' + driveAccessToken } }
+    ).then(r => r.text());
+
+    const dados = JSON.parse(conteudo);
+    if (dados.empresas)   state.empresas   = dados.empresas;
+    if (dados.folhas)     state.folhas     = dados.folhas;
+    if (dados.beneficios) state.beneficios = dados.beneficios;
+
+    localStorage.setItem(STORAGE_KEY, conteudo);
+    renderListaFolhas();
+    renderListaBeneficios();
+    renderListaEmpresas();
+    popularSelectsEmpresas();
+    popularDeptos();
+    updateDashboard();
+    notify(`Backup de ${dt} restaurado com sucesso!`, 'success');
+
+  } catch(e) {
+    notify('Erro ao restaurar backup: ' + (e.message || ''), 'error');
   }
 }
 
