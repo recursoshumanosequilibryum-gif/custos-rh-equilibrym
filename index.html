@@ -825,6 +825,9 @@ table.styled thead th {
     <span class="topbar-title" id="page-title">Dashboard</span>
     <span class="topbar-sub" id="page-sub">Visão geral do mês</span>
     <div class="topbar-actions">
+      <div id="salvo-indicator" style="display:none;align-items:center;gap:5px;font-size:12px;color:var(--success);background:var(--success-light);padding:5px 10px;border-radius:6px">
+        <i class="ti ti-check" style="font-size:14px"></i> Salvo
+      </div>
       <div style="display:flex;gap:6px;align-items:center;background:var(--gray-100);padding:4px;border-radius:8px">
         <button class="btn" id="dash-tab-mensal" onclick="setDashTab('mensal')" style="padding:6px 14px;font-size:12.5px;background:white;color:var(--teal-dark);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.08)">Mensal</button>
         <button class="btn" id="dash-tab-anual"  onclick="setDashTab('anual')"  style="padding:6px 14px;font-size:12.5px;background:transparent;color:var(--text-muted)">Anual</button>
@@ -1429,7 +1432,39 @@ table.styled thead th {
 
       <div class="card">
         <div class="card-header">
-          <i class="ti ti-send" style="color:var(--teal);font-size:18px"></i>
+          <i class="ti ti-database" style="color:var(--teal);font-size:18px"></i>
+          <div>
+            <div class="card-title">Dados locais — Backup & Restauração</div>
+            <div class="card-sub">Seus dados são salvos automaticamente neste navegador</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:16px;background:var(--teal-light);border-radius:10px;margin-bottom:16px">
+            <i class="ti ti-device-floppy" style="font-size:28px;color:var(--teal)"></i>
+            <div>
+              <div style="font-size:13.5px;font-weight:600;color:var(--teal-dark)">Salvamento automático ativo</div>
+              <div style="font-size:12px;color:var(--teal-dark);opacity:0.8;margin-top:2px">Empresas, folhas e benefícios são salvos automaticamente neste navegador. Os dados persistem mesmo fechando o sistema.</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="exportarBackup()">
+              <i class="ti ti-download"></i> Exportar backup (.json)
+            </button>
+            <button class="btn btn-outline" onclick="document.getElementById('input-backup').click()">
+              <i class="ti ti-upload"></i> Restaurar backup
+            </button>
+            <input type="file" id="input-backup" accept=".json" style="display:none" onchange="importarBackup(event)">
+            <button class="btn btn-ghost" onclick="limparTodosDados()" style="margin-left:auto;color:var(--danger);border-color:var(--danger)">
+              <i class="ti ti-trash"></i> Apagar todos os dados
+            </button>
+          </div>
+          <div style="margin-top:14px;padding:12px 14px;background:#FFF3E0;border-radius:8px;font-size:12.5px;color:#E65100">
+            <i class="ti ti-alert-triangle"></i> <strong>Importante:</strong> Os dados são salvos apenas neste navegador e computador. Para não perder nada, exporte o backup regularmente e salve também no Google Drive.
+          </div>
+        </div>
+      </div>
+
+
           <div>
             <div class="card-title">Enviar relatórios agora</div>
             <div class="card-sub">Selecione quais relatórios salvar no Drive</div>
@@ -1641,6 +1676,7 @@ function salvarEmpresa() {
     notify(`Empresa "${fantasia}" cadastrada com sucesso!`, 'success');
   }
 
+  salvarDados();
   closeModal('modal-empresa');
   limparFormEmpresa();
   popularSelectsEmpresas();
@@ -1678,6 +1714,7 @@ function removerEmpresa(idx) {
   const nome = state.empresas[idx].fantasia;
   if (!confirm(`Remover a empresa "${nome}"? Esta ação não pode ser desfeita.`)) return;
   state.empresas.splice(idx, 1);
+  salvarDados();
   popularSelectsEmpresas();
   renderListaEmpresas();
   notify(`Empresa "${nome}" removida.`, 'info');
@@ -2373,7 +2410,7 @@ function confirmarImportacaoFolha() {
   }
 
   state.folhas.push({ empresa, competencia: comp, tipo, funcionarios });
-  
+  salvarDados();
   renderListaFolhas();
   limparUploadFolha();
   popularDeptos();
@@ -2411,6 +2448,7 @@ function renderListaFolhas() {
 
 function removeFolha(i) {
   state.folhas.splice(i, 1);
+  salvarDados();
   renderListaFolhas();
   notify('Folha removida.', 'info');
 }
@@ -2682,6 +2720,7 @@ function confirmarImportacaoBenef() {
   if (existing >= 0) state.beneficios[existing] = entry;
   else state.beneficios.push(entry);
 
+  salvarDados();
   renderListaBeneficios();
   limparBenef();
   notify(`Benefícios de ${empresa.split(' - ')[0]} salvos com sucesso!`, 'success');
@@ -2717,6 +2756,7 @@ function renderListaBeneficios() {
 
 function removeBenef(i) {
   state.beneficios.splice(i, 1);
+  salvarDados();
   renderListaBeneficios();
   notify('Benefício removido.', 'info');
 }
@@ -3340,6 +3380,7 @@ function popularDeptos() {
 
 // INIT
 window.addEventListener('load', () => {
+  carregarDados();
   renderListaFolhas();
   renderListaBeneficios();
   renderListaEmpresas();
@@ -3348,6 +3389,106 @@ window.addEventListener('load', () => {
   updateDashboard();
   inicializarGIS();
 });
+
+// ============================================================
+// PERSISTÊNCIA — localStorage
+// ============================================================
+const STORAGE_KEY = 'equilibrym_rh_v1';
+
+function salvarDados() {
+  try {
+    const dados = {
+      empresas:   state.empresas,
+      folhas:     state.folhas,
+      beneficios: state.beneficios,
+      salvadoEm:  new Date().toISOString()
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
+    // Mostra indicador "Salvo" por 2 segundos
+    const ind = document.getElementById('salvo-indicator');
+    if (ind) {
+      ind.style.display = 'flex';
+      clearTimeout(ind._timer);
+      ind._timer = setTimeout(() => ind.style.display = 'none', 2000);
+    }
+  } catch(e) {
+    console.warn('Erro ao salvar dados localmente:', e);
+  }
+}
+
+function carregarDados() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const dados = JSON.parse(raw);
+    if (dados.empresas)   state.empresas   = dados.empresas;
+    if (dados.folhas)     state.folhas     = dados.folhas;
+    if (dados.beneficios) state.beneficios = dados.beneficios;
+    if (dados.salvadoEm) {
+      const dt = new Date(dados.salvadoEm).toLocaleString('pt-BR');
+      console.log(`Dados restaurados — último salvamento: ${dt}`);
+    }
+  } catch(e) {
+    console.warn('Erro ao carregar dados locais:', e);
+  }
+}
+
+function limparTodosDados() {
+  if (!confirm('Tem certeza que deseja apagar TODOS os dados salvos?\n\nEsta ação não pode ser desfeita.')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  state.empresas   = [];
+  state.folhas     = [];
+  state.beneficios = [];
+  renderListaFolhas();
+  renderListaBeneficios();
+  renderListaEmpresas();
+  popularSelectsEmpresas();
+  popularDeptos();
+  updateDashboard();
+  notify('Todos os dados foram apagados.', 'info');
+}
+
+function exportarBackup() {
+  const dados = localStorage.getItem(STORAGE_KEY);
+  if (!dados) { notify('Nenhum dado salvo para exportar.', 'info'); return; }
+  const blob = new Blob([dados], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `backup_rh_equilibrym_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  notify('Backup exportado com sucesso!', 'success');
+}
+
+function importarBackup(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const dados = JSON.parse(e.target.result);
+      if (!dados.folhas && !dados.empresas && !dados.beneficios) {
+        notify('Arquivo de backup inválido.', 'error');
+        return;
+      }
+      if (!confirm('Isso vai substituir todos os dados atuais pelo backup. Confirma?')) return;
+      localStorage.setItem(STORAGE_KEY, e.target.result);
+      carregarDados();
+      renderListaFolhas();
+      renderListaBeneficios();
+      renderListaEmpresas();
+      popularSelectsEmpresas();
+      popularDeptos();
+      updateDashboard();
+      notify('Backup restaurado com sucesso!', 'success');
+    } catch(err) {
+      notify('Erro ao ler o backup: arquivo corrompido.', 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
 </script>
 
 </body>
