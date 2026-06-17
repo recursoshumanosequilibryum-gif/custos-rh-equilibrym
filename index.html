@@ -1949,9 +1949,36 @@ function updateDashboard() {
   const deptoMap = {};
   const empresaMap = {};
 
-  const folhasFiltradas = anoFiltro
+  // Se não houver dados no mês selecionado, usa todos os dados disponíveis
+  let folhasFiltradas = anoFiltro
     ? state.folhas.filter(f => f.competencia && f.competencia.startsWith(anoFiltro))
     : state.folhas.filter(f => f.competencia === comp);
+
+  // Auto-detecta mês com dados se o selecionado estiver vazio
+  if (!anoFiltro && folhasFiltradas.length === 0 && state.folhas.length > 0) {
+    // Pega o mês mais recente com dados
+    const comps = [...new Set(state.folhas.map(f => f.competencia))].sort().reverse();
+    if (comps.length > 0) {
+      comp = comps[0];
+      folhasFiltradas = state.folhas.filter(f => f.competencia === comp);
+      // Atualiza o select para refletir o mês encontrado
+      const [y, m] = comp.split('-');
+      const optVal = `${m}/${y}`;
+      const sel = document.getElementById('mes-filtro');
+      if (sel) {
+        // Adiciona opção se não existir
+        let found = false;
+        for (const opt of sel.options) { if (opt.value === optVal) { opt.selected = true; found = true; break; } }
+        if (!found) {
+          const meses = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+          const opt = new Option(`${meses[parseInt(m)]} ${y}`, optVal, true, true);
+          sel.insertBefore(opt, sel.firstChild);
+        }
+      }
+      periodoLabel = formatComp(comp);
+      document.getElementById('page-sub').textContent = `Visão ${dashTab} · ${periodoLabel}`;
+    }
+  }
 
   folhasFiltradas.forEach(f => {
     f.funcionarios.forEach(fn => {
@@ -2589,7 +2616,27 @@ function confirmarImportacaoFolha() {
   renderListaFolhas();
   limparUploadFolha();
   popularDeptos();
-  notify(`Folha de ${empresa.split(' - ')[0]} importada — ${funcionarios.length} colaborador(es).`, 'success');
+
+  // Atualiza o select do dashboard para o mês importado
+  const [y, m] = comp.split('-');
+  const optVal = `${m}/${y}`;
+  const meses = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const sel = document.getElementById('mes-filtro');
+  if (sel) {
+    let found = false;
+    for (const opt of sel.options) { if (opt.value === optVal) { opt.selected = true; found = true; break; } }
+    if (!found) {
+      const novaOpt = new Option(`${meses[parseInt(m)]} ${y}`, optVal, true, true);
+      sel.insertBefore(novaOpt, sel.firstChild);
+    }
+  }
+  updateDashboard();
+
+  const nFunc = funcionarios.length;
+  const msgResumo = resumoGeral && resumoGeral.bruto > 0
+    ? `Bruto: R$ ${resumoGeral.bruto.toLocaleString('pt-BR',{minimumFractionDigits:2})} · Líquido: R$ ${resumoGeral.liquido.toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+    : `${nFunc} colaborador(es)`;
+  notify(`✓ Folha de ${empresa.split(' - ')[0]} importada! ${msgResumo}`, 'success');
 }
 
 function limparUploadFolha() {
