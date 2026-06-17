@@ -2263,142 +2263,181 @@ async function parsePDF(arrayBuffer) {
 
 function parsearExtratoDominio(linhas) {
   const funcionarios = [];
-  const resumoGeral  = { bruto:0, descontos:0, liquido:0, inss:0, irrf:0, fgts:0, salFamilia:0, liqRescisao:0 };
+  const resumoGeral = { bruto:0, descontos:0, liquido:0, inss:0, irrf:0, fgts:0, salFamilia:0, liqRescisao:0 };
   let centoCusto = '';
-
-  // Regex para identificar funcionários
-  const reEmpr   = /^(?:Empr\.|Contr:)\s+(\d+)\s+(.+?)\s+Situação:\s*(\w+)/i;
-  const reSalario = /Salário:\s*([\d.,]+)/i;
-  const reCargo   = /Cargo:\s*\d+\s+(.+?)\s+C\.B\.O:/i;
-  const reDepto   = /C\.Custo:\s*\d+\s*[-–]\s*(.+)/i;
-  const reProvent = /Proventos:\s*([\d.,]+)/i;
-  const reDesc    = /Descontos:\s*([\d.,]+)/i;
-  const reLiq     = /Líquido:.*?(\d[\d.,]+)$/;
-  const reBaseINSS= /Base INSS:\s*([\d.,]+)/i;
-  const reFGTS    = /Valor FGTS:\s*([\d.,]+)/i;
-  const reBaseIRRF= /Base IRRF:\s*([\d.,]+)/i;
-
-  // Regex para resumo geral (última página)
-  const reTotalProv = /Total Geral Proventos:\s*([\d.,]+)/i;
-  const reTotalDesc = /Total Geral Descontos:\s*([\d.,]+)/i;
-  const reTotalLiq  = /Líquido Geral:\s*([\d.,]+)/i;
-  const reINSSSeg   = /INSS Segurado\(Folha\):\s*([\d.,]+)/i;
-  const reIRRFTotal = /IRRF\(Folha\):\s*([\d.,]+)/i;
-  const reFGTSTotal = /Valor do FGTS:\s*([\d.,]+)/i;
-  const reFGTSResc  = /Valor FGTS Rescisório:\s*([\d.,]+)/i;
-  const reSalFam    = /\(\-\)Salário Família:\s*([\d.,]+)/i;
-  const reLiqResc   = /51\s+LIQUIDO RESCISAO.*?D/i;
-
   let currentFunc = null;
   let liqRescTotal = 0;
 
+  // Normaliza string removendo acentos para regex mais robusta
+  const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+
   for (let i = 0; i < linhas.length; i++) {
-    const linha = linhas[i];
+    const linha  = linhas[i];
+    const linhaN = norm(linha);
 
-    // Centro de custo / departamento
-    const mDepto = linha.match(reDepto);
-    if (mDepto) { centoCusto = mDepto[1].trim(); continue; }
-
-    // Cabeçalho do funcionário
-    const mEmpr = linha.match(reEmpr);
-    if (mEmpr) {
-      if (currentFunc && currentFunc.bruto > 0) funcionarios.push(currentFunc);
-      currentFunc = {
-        nome: mEmpr[2].trim(),
-        situacao: mEmpr[3].trim(),
-        depto: centoCusto || 'Geral',
-        cargo: '',
-        salarioBase: 0,
-        bruto: 0,
-        descontos: 0,
-        liquido: 0,
-        inss: 0,
-        irrf: 0,
-        fgts: 0,
-        salFamilia: 0,
-        liqRescisao: 0,
-      };
-      const mSal = linha.match(reSalario);
-      if (mSal) currentFunc.salarioBase = parseMoeda(mSal[1]);
-      const mCargo = linha.match(reCargo);
-      if (mCargo) currentFunc.cargo = mCargo[1].trim();
+    // --- CENTRO DE CUSTO / DEPARTAMENTO ---
+    // Ex: "C.Custo: 2 - VILA MARIANA" ou "C.Custo: 2 – VILA MARIANA"
+    const mCC = linhaN.match(/c\.custo:\s*\d+\s*[-–]\s*(.+)/);
+    if (mCC) {
+      // Pega o texto original preservando maiúsculas
+      const orig = linha.match(/C\.Custo:\s*\d+\s*[-–]\s*(.+)/i);
+      centoCusto = orig ? orig[1].trim() : mCC[1].trim();
       continue;
     }
 
-    if (!currentFunc) continue;
+    // --- CABEÇALHO DO FUNCIONÁRIO ---
+    // Ex: "Empr.: 107 CAIO MARCONDES VICCO Situação: Demitido CPF: ..."
+    // Ex: "Contr: 5 FABIO HELBIG LONGHI Situação: Trabalhando CPF: ..."
+    const mEmpr = linhaN.match(/^(?:empr\.:|contr:)\s*(\d+)\s+(.+?)\s+situacao:\s*(\w+)/);
+    if (mEmpr) {
+      if (currentFunc && currentFunc.bruto > 0) funcionarios.push({...currentFunc});
+      // Nome: pega do original entre número e "Situação:"
+      const origNome = linha.match(/(?:Empr\.:|Contr:)\s*\d+\s+(.+?)\s+Situa/i);
+      const nome = origNome ? origNome[1].trim() : mEmpr[2].trim();
+      currentFunc = {
+        nome, situacao: mEmpr[3],
+        depto: centoCusto || 'Geral',
+        cargo: '', salarioBase: 0,
+        bruto: 0, descontos: 0, liquido: 0,
+        inss: 0, irrf: 0, fgts: 0,
+        salFamilia: 0, liqRescisao: 0,
+      };
+      // Salário base na mesma linha
+      const mSal = linha.match(/Sal[aá]rio:\s*([\d.,]+)/i);
+      if (mSal) currentFunc.salarioBase = parseMoeda(mSal[1]);
+      // Cargo na mesma linha
+      const mCarg = linha.match(/Cargo:\s*\d+\s+(.+?)\s+C\.B\.O:/i);
+      if (mCarg) currentFunc.cargo = mCarg[1].trim();
+      continue;
+    }
 
-    // Cargo (linha seguinte)
-    const mCargo2 = linha.match(/Cargo:\s*\d+\s+(.+?)\s+C\.B\.O:/i);
-    if (mCargo2 && !currentFunc.cargo) currentFunc.cargo = mCargo2[1].trim();
+    if (!currentFunc) {
+      // Ainda fora de funcionário — captura resumo geral
+      capturaResumoGeral(linhaN, linha, resumoGeral);
+      continue;
+    }
 
-    // Salário família (rubrica 995 ou 224)
-    if (/995\s+SALARIO FAMILIA|224\s+SALARIO FAMILIA/i.test(linha)) {
-      const m = linha.match(/([\d.,]+)\s+P\s*$/);
+    // --- CARGO (pode vir na linha seguinte) ---
+    if (!currentFunc.cargo) {
+      const mC = linha.match(/Cargo:\s*\d+\s+(.+?)\s+C\.B\.O:/i);
+      if (mC) currentFunc.cargo = mC[1].trim();
+    }
+
+    // --- RUBRICAS DE PROVENTOS/DESCONTOS ---
+
+    // Salário família (995, 224)
+    if (/(995|224)/.test(linha) && /SALARIO FAMILIA/i.test(linha)) {
+      const m = linha.match(/([\d.,]+)\s+P/);
       if (m) currentFunc.salFamilia += parseMoeda(m[1]);
     }
 
-    // IRRF (rubrica 999)
-    if (/999\s+IMPOSTO D RENDA|828\s+IRRF/i.test(linha)) {
+    // IRRF (999 IMPOSTO D RENDA, 828 IRRF)
+    if ((/999/.test(linha) && /IMPOSTO/i.test(linha)) ||
+        (/828/.test(linha) && /IRRF/i.test(linha))) {
       const m = linha.match(/([\d.,]+)\s+D/);
       if (m) currentFunc.irrf += parseMoeda(m[1]);
     }
 
-    // Líquido de Rescisão (rubrica 51)
-    if (/51\s+LIQUIDO RESCISAO/i.test(linha)) {
+    // Líquido rescisão (51)
+    if (/51/.test(linha) && /LIQUIDO RESCISAO/i.test(linha)) {
       const m = linha.match(/([\d.,]+)\s+D/);
       if (m) { currentFunc.liqRescisao = parseMoeda(m[1]); liqRescTotal += parseMoeda(m[1]); }
     }
 
-    // Totais do funcionário
-    const mProv = linha.match(reProvent);
-    if (mProv) currentFunc.bruto = parseMoeda(mProv[1]);
-    const mDesc = linha.match(reDesc);
-    if (mDesc) currentFunc.descontos = parseMoeda(mDesc[1]);
-    const mLiq = linha.match(reLiq);
-    if (mLiq && !linha.includes('Centro de Custo') && !linha.includes('Geral')) {
-      const v = parseMoeda(mLiq[1]);
-      if (v > 0) currentFunc.liquido = v;
-    }
-    const mINSS = linha.match(reBaseINSS);
-    if (mINSS) {
-      // INSS do funcionário = % × base (aparece como "998 I.N.S.S 1 X,XX V D")
-    }
-    const mFGTS = linha.match(reFGTS);
-    if (mFGTS) currentFunc.fgts = parseMoeda(mFGTS[1]);
-
-    // Captura INSS descontado (998 I.N.S.S)
-    if (/998\s+I\.N\.S\.S|826\s+INSS SOBRE|989\s+INSS 13|812\s+INSS FERIAS|821\s+INSS DIFER/i.test(linha)) {
+    // INSS do funcionário (998, 826, 989, 812, 821, 843)
+    if (/(998|826|989|812|821|843)/.test(linha) &&
+        /I\.N\.S\.S|INSS/i.test(linha)) {
       const m = linha.match(/([\d.,]+)\s+D(?:\s|$)/);
       if (m) currentFunc.inss += parseMoeda(m[1]);
     }
 
-    // RESUMO GERAL (última página)
-    const mTP = linha.match(reTotalProv);   if (mTP) resumoGeral.bruto        = parseMoeda(mTP[1]);
-    const mTD = linha.match(reTotalDesc);   if (mTD) resumoGeral.descontos    = parseMoeda(mTD[1]);
-    const mTL = linha.match(reTotalLiq);    if (mTL) resumoGeral.liquido      = parseMoeda(mTL[1]);
-    const mIS = linha.match(reINSSSeg);     if (mIS) resumoGeral.inss         = parseMoeda(mIS[1]);
-    const mIR = linha.match(reIRRFTotal);   if (mIR) resumoGeral.irrf        += parseMoeda(mIR[1]);
-    const mFG = linha.match(reFGTSTotal);   if (mFG) resumoGeral.fgts        += parseMoeda(mFG[1]);
-    const mFR = linha.match(reFGTSResc);    if (mFR) resumoGeral.fgts        += parseMoeda(mFR[1]);
-    const mSF = linha.match(reSalFam);      if (mSF) resumoGeral.salFamilia   = parseMoeda(mSF[1]);
+    // FGTS do funcionário (linha "Valor FGTS: X")
+    const mFGTS = linhaN.match(/valor fgts:\s*([\d.,]+)/);
+    if (mFGTS) currentFunc.fgts = parseMoeda(mFGTS[1]);
+
+    // Totais do funcionário (linha ND/NF)
+    // "ND: 0 Proventos: 3.701,04 Descontos: 3.701,04 Líquido: ..."
+    const mProv = linhaN.match(/proventos:\s*([\d.,]+)/);
+    if (mProv) currentFunc.bruto = parseMoeda(mProv[1]);
+
+    const mDesc = linhaN.match(/descontos:\s*([\d.,]+)/);
+    if (mDesc) currentFunc.descontos = parseMoeda(mDesc[1]);
+
+    // Líquido: pode ser "Líquido: 621,98" ou "Líquido: Informativa: ..."
+    // O valor líquido real é o último número da linha ND/NF
+    if (linhaN.includes('proventos:') && linhaN.includes('descontos:')) {
+      // Pega o último número da linha como líquido
+      const nums = linha.match(/([\d.,]+)/g);
+      if (nums && nums.length >= 2) {
+        const ultimo = parseMoeda(nums[nums.length - 1]);
+        if (ultimo > 0) currentFunc.liquido = ultimo;
+      }
+    }
+
+    // Captura resumo geral também dentro do loop (última página)
+    capturaResumoGeral(linhaN, linha, resumoGeral);
   }
 
   // Último funcionário
-  if (currentFunc && currentFunc.bruto > 0) funcionarios.push(currentFunc);
+  if (currentFunc && currentFunc.bruto > 0) funcionarios.push({...currentFunc});
   resumoGeral.liqRescisao = liqRescTotal;
 
-  // Armazena resumo global para o dashboard
-  window._pdfResumoGeral = resumoGeral;
+  console.log('[PDF Parser] Funcionários encontrados:', funcionarios.length);
+  console.log('[PDF Parser] Resumo Geral:', resumoGeral);
+
+  window._pdfResumoGeral = (resumoGeral.bruto > 0 || resumoGeral.inss > 0) ? resumoGeral : null;
   window._pdfColMap = {};
 
   // Monta rows para preview
-  const rows = [['Nome','Depto','Cargo','Situação','Salário Base','Proventos','Descontos','Líquido','INSS','IRRF','FGTS','Sal.Família','Liq.Rescisão']];
-  funcionarios.forEach(f => {
-    rows.push([f.nome, f.depto, f.cargo, f.situacao, f.salarioBase, f.bruto, f.descontos, f.liquido, f.inss, f.irrf, f.fgts, f.salFamilia, f.liqRescisao]);
-  });
+  const rows = [['Nome','Depto','Cargo','Situação','Sal.Base','Proventos','Descontos','Líquido','INSS','IRRF','FGTS','Sal.Fam','Liq.Resc']];
+  funcionarios.forEach(f => rows.push([
+    f.nome, f.depto, f.cargo, f.situacao,
+    f.salarioBase, f.bruto, f.descontos, f.liquido,
+    f.inss, f.irrf, f.fgts, f.salFamilia, f.liqRescisao
+  ]));
 
   window._pdfFuncionarios = funcionarios;
   return rows;
+}
+
+function capturaResumoGeral(linhaN, linhaOrig, resumoGeral) {
+  let m;
+  m = linhaN.match(/total geral proventos:\s*([\d.,]+)/);
+  if (m) resumoGeral.bruto = parseMoeda(m[1]);
+
+  m = linhaN.match(/total geral descontos:\s*([\d.,]+)/);
+  if (m) resumoGeral.descontos = parseMoeda(m[1]);
+
+  // "Líquido Geral: 117.915,18" — aparece duas vezes, usa a maior
+  m = linhaN.match(/liquido geral:\s*([\d.,]+)/);
+  if (m) { const v = parseMoeda(m[1]); if (v > resumoGeral.liquido) resumoGeral.liquido = v; }
+
+  // INSS Segurado(Folha): 12.761,59
+  m = linhaN.match(/inss segurado\(folha\):\s*([\d.,]+)/);
+  if (!m) m = linhaN.match(/segurados:\s*([\d.,]+)/);
+  if (m && resumoGeral.inss === 0) resumoGeral.inss = parseMoeda(m[1]);
+
+  // Total INSS (linha "Total INSS: 12.761,59")
+  m = linhaN.match(/^total inss:\s*([\d.,]+)/);
+  if (m) resumoGeral.inss = parseMoeda(m[1]);
+
+  // IRRF(Folha): — pode aparecer como "IRRF(Folha): 370,34"
+  m = linhaN.match(/irrf\(folha\):\s*([\d.,]+)/);
+  if (!m) m = linhaN.match(/valor total do irrf:\s*([\d.,]+)/);
+  if (m) { const v = parseMoeda(m[1]); if (v > 0 && resumoGeral.irrf === 0) resumoGeral.irrf = v; }
+
+  // FGTS — "Valor do FGTS: 10.947,12"
+  m = linhaN.match(/valor do fgts:\s*([\d.,]+)/);
+  if (m) resumoGeral.fgts += parseMoeda(m[1]);
+
+  // FGTS rescisório
+  m = linhaN.match(/valor fgts rescisorio:\s*([\d.,]+)/);
+  if (m) resumoGeral.fgts += parseMoeda(m[1]);
+
+  // Salário família — "(-) Salário Família: 576,34"  ou  "(-) Salario Familia: ..."
+  m = linhaN.match(/\(-\)\s*salari[oa]\s+famili[ai]:\s*([\d.,]+)/);
+  if (!m) m = linhaN.match(/salari[oa] familia.*?:\s*([\d.,]+)/);
+  if (m) resumoGeral.salFamilia = parseMoeda(m[1]);
 }
 
 function rowsParaFuncionarios(rows) {
