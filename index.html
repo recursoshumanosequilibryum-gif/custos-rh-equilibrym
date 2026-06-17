@@ -2604,28 +2604,71 @@ function limparUploadFolha() {
 function renderListaFolhas() {
   const el = document.getElementById('lista-folhas');
   if (!state.folhas.length) {
-    el.innerHTML = `<div class="empty-state"><i class="ti ti-inbox"></i><h3>Nenhuma folha importada</h3></div>`;
+    el.innerHTML = `<div class="empty-state"><i class="ti ti-inbox"></i><h3>Nenhuma folha importada</h3><p>Faça o upload do primeiro PDF de folha de pagamento acima.</p></div>`;
     return;
   }
-  el.innerHTML = `<div class="file-list">${state.folhas.map((f,i) => `
-    <div class="file-item">
-      <div class="file-icon xlsx"><i class="ti ti-file-spreadsheet"></i></div>
-      <div class="file-info">
-        <div class="file-name">${f.empresa.split(' - ')[0]}</div>
-        <div class="file-meta">${f.empresa.split(' - ')[1] || ''} · ${formatComp(f.competencia)} · Tipo: ${f.tipo} · ${f.funcionarios.length} colaboradores</div>
-      </div>
-      <div class="file-status" style="display:flex;gap:8px;align-items:center">
-        <span class="badge badge-green"><i class="ti ti-check"></i> Importado</span>
-        <button class="btn btn-ghost" style="padding:5px 8px" onclick="removeFolha(${i})"><i class="ti ti-trash" style="font-size:14px;color:var(--danger)"></i></button>
-      </div>
-    </div>`).join('')}</div>`;
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-size:13px;color:var(--text-muted)">${state.folhas.length} folha(s) importada(s)</span>
+      <button class="btn btn-ghost" style="color:var(--danger);border-color:var(--danger);font-size:12px;padding:5px 10px" onclick="confirmarRemoverTodasFolhas()">
+        <i class="ti ti-trash"></i> Remover todas
+      </button>
+    </div>
+    <div class="file-list">
+      ${state.folhas.map((f,i) => {
+        const temResumo = f.resumoGeral && f.resumoGeral.bruto > 0;
+        const bruto = temResumo ? fmt(f.resumoGeral.bruto) : `${f.funcionarios.length} colaboradores`;
+        const liquido = temResumo ? fmt(f.resumoGeral.liquido) : '';
+        return `
+        <div class="file-item" style="flex-wrap:wrap;gap:8px">
+          <div class="file-icon xlsx" style="background:#E8F5E9;color:#2E7D32">
+            <i class="ti ti-file-type-pdf"></i>
+          </div>
+          <div class="file-info" style="flex:1;min-width:200px">
+            <div class="file-name">${f.empresa.split(' - ')[0]}</div>
+            <div class="file-meta">
+              ${f.empresa.split(' - ')[1] || ''} · ${formatComp(f.competencia)} · ${f.tipo}
+              ${temResumo ? `<br><span style="color:var(--teal-dark);font-weight:500">Bruto: ${bruto}</span> · <span style="color:#27AE60;font-weight:500">Líquido: ${liquido}</span>` : `· ${f.funcionarios.length} colaboradores`}
+            </div>
+          </div>
+          <div class="file-status" style="display:flex;gap:8px;align-items:center">
+            <span class="badge badge-green"><i class="ti ti-check"></i> Importado</span>
+            <button class="btn btn-ghost" onclick="confirmarRemoverFolha(${i})"
+              style="padding:6px 10px;background:#FFF0F0;border:1px solid #FFCDD2;color:var(--danger);border-radius:6px;font-size:12px;display:flex;align-items:center;gap:4px">
+              <i class="ti ti-trash" style="font-size:14px"></i> Excluir
+            </button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
 }
 
-function removeFolha(i) {
+function confirmarRemoverFolha(i) {
+  const f = state.folhas[i];
+  const nome = f.empresa.split(' - ')[0];
+  const comp = formatComp(f.competencia);
+  if (!confirm(`Excluir a folha de "${nome}" — ${comp}?\n\nEsta ação não pode ser desfeita.`)) return;
   state.folhas.splice(i, 1);
   salvarDados();
   renderListaFolhas();
-  notify('Folha removida.', 'info');
+  popularDeptos();
+  updateDashboard();
+  notify(`Folha de ${nome} excluída.`, 'info');
+}
+
+function confirmarRemoverTodasFolhas() {
+  if (!state.folhas.length) return;
+  if (!confirm(`Excluir TODAS as ${state.folhas.length} folha(s) importadas?\n\nEsta ação não pode ser desfeita.`)) return;
+  state.folhas = [];
+  salvarDados();
+  renderListaFolhas();
+  popularDeptos();
+  updateDashboard();
+  notify('Todas as folhas foram removidas.', 'info');
+}
+
+function removeFolha(i) {
+  confirmarRemoverFolha(i);
 }
 
 function formatComp(c) {
@@ -2913,27 +2956,65 @@ function renderListaBeneficios() {
     el.innerHTML = `<div class="empty-state"><i class="ti ti-inbox"></i><h3>Nenhum benefício importado</h3></div>`;
     return;
   }
-  el.innerHTML = `<div class="file-list">${state.beneficios.map((b,i) => {
-    const total = b.dados.reduce((s,d)=>(s + (d.va||0)+(d.vr||0)+(d.comb||0)+(d.bonus||0)+(d.premiacao||0)+(d.assid||0)), 0);
-    return `<div class="file-item">
-      <div class="file-icon xlsx"><i class="ti ti-gift"></i></div>
-      <div class="file-info">
-        <div class="file-name">${b.empresa.split(' - ')[0]}</div>
-        <div class="file-meta">${formatComp(b.competencia)} · ${b.dados.length} colaboradores · Total: ${fmt(total)}</div>
-      </div>
-      <div class="file-status" style="display:flex;gap:8px;align-items:center">
-        <span class="badge badge-amber"><i class="ti ti-check"></i> Salvo</span>
-        <button class="btn btn-ghost" style="padding:5px 8px" onclick="removeBenef(${i})"><i class="ti ti-trash" style="font-size:14px;color:var(--danger)"></i></button>
-      </div>
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-size:13px;color:var(--text-muted)">${state.beneficios.length} registro(s) de benefícios</span>
+      <button class="btn btn-ghost" style="color:var(--danger);border-color:var(--danger);font-size:12px;padding:5px 10px" onclick="confirmarRemoverTodosBenef()">
+        <i class="ti ti-trash"></i> Remover todos
+      </button>
+    </div>
+    <div class="file-list">
+      ${state.beneficios.map((b,i) => {
+        const tm = b.totalManual || {};
+        const totalM = (tm.va||0)+(tm.vr||0)+(tm.comb||0)+(tm.bonus||0)+(tm.premiacao||0)+(tm.assid||0);
+        const totalD = b.dados ? b.dados.reduce((s,d)=>(s+(d.va||0)+(d.vr||0)+(d.comb||0)+(d.bonus||0)+(d.premiacao||0)+(d.assid||0)),0) : 0;
+        const total = totalM || totalD;
+        return `
+        <div class="file-item">
+          <div class="file-icon xlsx" style="background:#FFF3E0;color:#E67E22"><i class="ti ti-gift"></i></div>
+          <div class="file-info">
+            <div class="file-name">${b.empresa.split(' - ')[0]}</div>
+            <div class="file-meta">
+              ${formatComp(b.competencia)} · ${b.dados ? b.dados.length : 0} colaboradores
+              ${total > 0 ? `· <span style="color:#E67E22;font-weight:500">Total: ${fmt(total)}</span>` : ''}
+              ${totalM > 0 ? `<br>VA: ${fmt(tm.va||0)} · VR: ${fmt(tm.vr||0)} · Comb: ${fmt(tm.comb||0)} · Bônus: ${fmt(tm.bonus||0)} · Prem: ${fmt(tm.premiacao||0)} · Assim: ${fmt(tm.assid||0)}` : ''}
+            </div>
+          </div>
+          <div class="file-status" style="display:flex;gap:8px;align-items:center">
+            <span class="badge badge-amber"><i class="ti ti-check"></i> Salvo</span>
+            <button class="btn btn-ghost" onclick="confirmarRemoverBenef(${i})"
+              style="padding:6px 10px;background:#FFF0F0;border:1px solid #FFCDD2;color:var(--danger);border-radius:6px;font-size:12px;display:flex;align-items:center;gap:4px">
+              <i class="ti ti-trash" style="font-size:14px"></i> Excluir
+            </button>
+          </div>
+        </div>`;
+      }).join('')}
     </div>`;
-  }).join('')}</div>`;
 }
 
-function removeBenef(i) {
+function confirmarRemoverBenef(i) {
+  const b = state.beneficios[i];
+  const nome = b.empresa.split(' - ')[0];
+  if (!confirm(`Excluir benefícios de "${nome}" — ${formatComp(b.competencia)}?\n\nEsta ação não pode ser desfeita.`)) return;
   state.beneficios.splice(i, 1);
   salvarDados();
   renderListaBeneficios();
-  notify('Benefício removido.', 'info');
+  updateDashboard();
+  notify(`Benefícios de ${nome} excluídos.`, 'info');
+}
+
+function confirmarRemoverTodosBenef() {
+  if (!state.beneficios.length) return;
+  if (!confirm(`Excluir TODOS os ${state.beneficios.length} registro(s) de benefícios?\n\nEsta ação não pode ser desfeita.`)) return;
+  state.beneficios = [];
+  salvarDados();
+  renderListaBeneficios();
+  updateDashboard();
+  notify('Todos os benefícios foram removidos.', 'info');
+}
+
+function removeBenef(i) {
+  confirmarRemoverBenef(i);
 }
 
 function gerarRelBenef() {
