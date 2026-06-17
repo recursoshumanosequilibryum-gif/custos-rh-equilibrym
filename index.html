@@ -866,9 +866,15 @@ table.styled thead th {
       <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
         <div class="kpi-card">
           <i class="ti ti-cash kpi-icon"></i>
-          <div class="kpi-label">Custo Total Folha</div>
+          <div class="kpi-label">Custo Total Folha Bruta</div>
           <div class="kpi-value" id="kpi-total">R$ 0</div>
           <div class="kpi-sub" id="kpi-total-sub">0 empresas ativas</div>
+        </div>
+        <div class="kpi-card" style="">
+          <i class="ti ti-cash kpi-icon" style="color:#E8F5E9"></i>
+          <div class="kpi-label">Custo Total Folha Líquida</div>
+          <div class="kpi-value" id="kpi-liquido" style="color:#27AE60">R$ 0</div>
+          <div class="kpi-sub" id="kpi-liquido-sub">após todos os descontos</div>
         </div>
         <div class="kpi-card slate">
           <i class="ti ti-users kpi-icon"></i>
@@ -888,11 +894,29 @@ table.styled thead th {
           <div class="kpi-value" id="kpi-media">R$ 0</div>
           <div class="kpi-sub">folha + benefícios</div>
         </div>
-        <div class="kpi-card" style="--accent:#8E44AD">
+        <div class="kpi-card" style="">
           <i class="ti ti-receipt-tax kpi-icon" style="color:#F3E5F5"></i>
-          <div class="kpi-label">Total INSS</div>
+          <div class="kpi-label">INSS Segurado</div>
           <div class="kpi-value" id="kpi-inss" style="color:#6A1B9A">R$ 0</div>
-          <div class="kpi-sub" id="kpi-inss-sub">encargo patronal</div>
+          <div class="kpi-sub" id="kpi-inss-sub">descontado do colaborador</div>
+        </div>
+        <div class="kpi-card" style="">
+          <i class="ti ti-file-invoice kpi-icon" style="color:#FCE4EC"></i>
+          <div class="kpi-label">IRRF Folha</div>
+          <div class="kpi-value" id="kpi-irrf" style="color:#BF360C">R$ 0</div>
+          <div class="kpi-sub">imposto de renda retido</div>
+        </div>
+        <div class="kpi-card" style="">
+          <i class="ti ti-heart kpi-icon" style="color:#E8F5E9"></i>
+          <div class="kpi-label">Salário Família</div>
+          <div class="kpi-value" id="kpi-salfam" style="color:#2E7D32">R$ 0</div>
+          <div class="kpi-sub">benefício legal</div>
+        </div>
+        <div class="kpi-card" style="">
+          <i class="ti ti-clipboard-x kpi-icon" style="color:#FFF3E0"></i>
+          <div class="kpi-label">Líquido Rescisão</div>
+          <div class="kpi-value" id="kpi-liqresc" style="color:#E65100">R$ 0</div>
+          <div class="kpi-sub">verbas rescisórias</div>
         </div>
         <div class="kpi-card" style="">
           <i class="ti ti-building-bank kpi-icon" style="color:#E3F2FD"></i>
@@ -923,25 +947,37 @@ table.styled thead th {
             <div class="card-sub" style="color:rgba(255,255,255,0.6)">Visão consolidada de todos os encargos trabalhistas</div>
           </div>
         </div>
-        <div class="summary-strip" style="border:none;border-radius:0">
+        <div class="summary-strip" style="border:none;border-radius:0;flex-wrap:wrap">
           <div class="summary-item">
-            <div class="val" id="strip-inss" style="color:#6A1B9A">R$ 0</div>
-            <div class="lbl">INSS (funcionário)</div>
-          </div>
-          <div class="summary-item">
-            <div class="val" id="strip-fgts" style="color:#1565C0">R$ 0</div>
-            <div class="lbl">FGTS (8%)</div>
-          </div>
-          <div class="summary-item">
-            <div class="val" id="strip-descontos" style="color:#E65100">R$ 0</div>
-            <div class="lbl">Outros Descontos</div>
+            <div class="val" id="strip-bruto" style="color:#1A237E">R$ 0</div>
+            <div class="lbl">Folha Bruta</div>
           </div>
           <div class="summary-item">
             <div class="val" id="strip-liquido" style="color:#27AE60">R$ 0</div>
-            <div class="lbl">Total Líquido Pago</div>
+            <div class="lbl">Folha Líquida</div>
+          </div>
+          <div class="summary-item">
+            <div class="val" id="strip-inss" style="color:#6A1B9A">R$ 0</div>
+            <div class="lbl">INSS Segurado</div>
+          </div>
+          <div class="summary-item">
+            <div class="val" id="strip-irrf" style="color:#BF360C">R$ 0</div>
+            <div class="lbl">IRRF Folha</div>
+          </div>
+          <div class="summary-item">
+            <div class="val" id="strip-fgts" style="color:#1565C0">R$ 0</div>
+            <div class="lbl">FGTS</div>
+          </div>
+          <div class="summary-item">
+            <div class="val" id="strip-salfam" style="color:#2E7D32">R$ 0</div>
+            <div class="lbl">Salário Família</div>
+          </div>
+          <div class="summary-item">
+            <div class="val" id="strip-liqresc" style="color:#E65100">R$ 0</div>
+            <div class="lbl">Líquido Rescisão</div>
           </div>
           <div class="summary-item" style="background:var(--gray-50)">
-            <div class="val" id="strip-total-enc" style="color:#C62828;font-size:22px">R$ 0</div>
+            <div class="val" id="strip-total-enc" style="color:#C62828;font-size:20px">R$ 0</div>
             <div class="lbl">Total Encargos</div>
           </div>
         </div>
@@ -1960,7 +1996,9 @@ function updateDashboard() {
   const totalRH = totalFolha + totalBenef;
 
   // KPIs principais
-  document.getElementById('kpi-total').textContent = fmt(totalFolha);
+  document.getElementById('kpi-total').textContent = fmt(totalBruto || totalFolha);
+  const el_liq = document.getElementById('kpi-liquido'); if(el_liq){ el_liq.textContent = fmt(totalLiquido); }
+  const el_liqsub = document.getElementById('kpi-liquido-sub'); if(el_liqsub){ el_liqsub.textContent = totalLiquido > 0 ? `${((totalLiquido/(totalBruto||totalFolha||1))*100).toFixed(1)}% do bruto` : 'após todos os descontos'; }
   document.getElementById('kpi-total-sub').textContent = `${empresasAtivas} empresa${empresasAtivas !== 1 ? 's' : ''} ativa${empresasAtivas !== 1 ? 's' : ''}`;
   document.getElementById('kpi-func').textContent = fmtN(totalFunc);
   document.getElementById('kpi-func-sub').textContent = `em ${deptos} departamento${deptos !== 1 ? 's' : ''}`;
@@ -1970,17 +2008,23 @@ function updateDashboard() {
   // KPIs impostos
   document.getElementById('kpi-inss').textContent = fmt(totalINSS);
   document.getElementById('kpi-fgts').textContent = fmt(totalFGTS);
+  const elIRRF = document.getElementById('kpi-irrf'); if(elIRRF) elIRRF.textContent = fmt(totalIRRF);
+  const elSF = document.getElementById('kpi-salfam'); if(elSF) elSF.textContent = fmt(totalSalFamilia);
+  const elLR = document.getElementById('kpi-liqresc'); if(elLR) elLR.textContent = fmt(totalLiqRescisao);
   document.getElementById('kpi-impostos').textContent = fmt(totalEncargos);
   document.getElementById('kpi-impostos-sub').textContent = `${totalFolha > 0 ? ((totalEncargos/totalFolha)*100).toFixed(1) : 0}% da folha bruta`;
   document.getElementById('kpi-total-rh').textContent = fmt(totalRH);
   document.getElementById('kpi-total-rh-sub').textContent = `${totalFolha > 0 ? ((totalBenef/totalRH)*100).toFixed(1) : 0}% benefícios`;
 
-  // Strip encargos
-  document.getElementById('strip-inss').textContent      = fmt(totalINSS);
-  document.getElementById('strip-fgts').textContent      = fmt(totalFGTS);
-  document.getElementById('strip-descontos').textContent = fmt(totalDescontos);
-  document.getElementById('strip-liquido').textContent   = fmt(totalLiquido);
-  document.getElementById('strip-total-enc').textContent = fmt(totalEncargos);
+  // Strip encargos detalhado
+  document.getElementById('strip-bruto').textContent       = fmt(totalBruto || totalFolha);
+  document.getElementById('strip-liquido').textContent     = fmt(totalLiquido);
+  document.getElementById('strip-inss').textContent        = fmt(totalINSS);
+  document.getElementById('strip-irrf').textContent        = fmt(totalIRRF);
+  document.getElementById('strip-fgts').textContent        = fmt(totalFGTS);
+  document.getElementById('strip-salfam').textContent      = fmt(totalSalFamilia);
+  document.getElementById('strip-liqresc').textContent     = fmt(totalLiqRescisao);
+  document.getElementById('strip-total-enc').textContent   = fmt(totalEncargos);
 
   renderChartCNPJ(empresaMap);
   renderChartDepto(deptoMap);
@@ -2181,112 +2225,6 @@ let uploadedFolhaData = null;
 // ============================================================
 // PARSER DE PDF — extrai tabela de folha de pagamento
 // ============================================================
-async function parsePDF(arrayBuffer) {
-  // Configura worker do PDF.js
-  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-  }
-
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  let textoCompleto = '';
-
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-
-    // Agrupa itens por linha (posição Y aproximada)
-    const linhas = {};
-    content.items.forEach(item => {
-      const y = Math.round(item.transform[5]);
-      if (!linhas[y]) linhas[y] = [];
-      linhas[y].push({ x: item.transform[4], texto: item.str });
-    });
-
-    // Ordena linhas de cima para baixo e itens da esquerda para direita
-    const linhasOrdenadas = Object.keys(linhas)
-      .map(Number)
-      .sort((a, b) => b - a); // PDF: Y cresce para baixo
-
-    linhasOrdenadas.forEach(y => {
-      const itens = linhas[y].sort((a, b) => a.x - b.x);
-      textoCompleto += itens.map(i => i.texto).join('\t') + '\n';
-    });
-  }
-
-  return parsearTextoPDF(textoCompleto);
-}
-
-// Detecta colunas e monta rows a partir do texto extraído do PDF
-function parsearTextoPDF(texto) {
-  const linhas = texto.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  if (!linhas.length) return [];
-
-  // Mapeamento flexível de nomes de colunas comuns em folhas de pagamento
-  const mapeamento = {
-    nome:        ['nome', 'colaborador', 'funcionário', 'funcionario', 'empregado', 'trabalhador'],
-    depto:       ['departamento', 'depto', 'setor', 'área', 'area', 'lotação', 'lotacao'],
-    cargo:       ['cargo', 'função', 'funcao', 'ocupação', 'ocupacao', 'função/cargo'],
-    bruto:       ['salário bruto', 'salario bruto', 'sal. bruto', 'sal bruto', 'bruto', 'vencimento', 'remuneração', 'remuneracao'],
-    descontos:   ['descontos', 'desconto', 'total descontos', 'outros descontos'],
-    inss:        ['inss', 'prev. social', 'previdência', 'previdencia', 'contrib. previdenciária'],
-    fgts:        ['fgts', 'fundo de garantia'],
-    liquido:     ['salário líquido', 'salario liquido', 'sal. líquido', 'sal liquido', 'líquido', 'liquido', 'valor líquido', 'valor a receber'],
-  };
-
-  // Tenta encontrar linha de cabeçalho
-  let cabecalhoIdx = -1;
-  let cabecalhoCols = [];
-
-  for (let i = 0; i < Math.min(linhas.length, 15); i++) {
-    const cols = linhas[i].split('\t').map(c => c.trim().toLowerCase());
-    const matches = cols.filter(c =>
-      Object.values(mapeamento).some(aliases => aliases.some(a => c.includes(a)))
-    );
-    if (matches.length >= 2) {
-      cabecalhoIdx = i;
-      cabecalhoCols = cols;
-      break;
-    }
-  }
-
-  // Se não achou cabeçalho claro, trata a primeira linha como cabeçalho
-  if (cabecalhoIdx === -1) {
-    cabecalhoIdx = 0;
-    cabecalhoCols = linhas[0].split('\t').map(c => c.trim().toLowerCase());
-  }
-
-  // Mapeia cada coluna para o campo interno
-  const indicesColunas = {};
-  cabecalhoCols.forEach((col, idx) => {
-    Object.entries(mapeamento).forEach(([campo, aliases]) => {
-      if (aliases.some(a => col.includes(a))) {
-        if (indicesColunas[campo] === undefined) indicesColunas[campo] = idx;
-      }
-    });
-  });
-
-  // Monta rows no formato [header, ...dados]
-  const headers = cabecalhoCols.map(c => c.charAt(0).toUpperCase() + c.slice(1));
-  const rows = [cabecalhoCols.map(c => c.charAt(0).toUpperCase() + c.slice(1))];
-
-  for (let i = cabecalhoIdx + 1; i < linhas.length; i++) {
-    const cols = linhas[i].split('\t').map(c => c.trim());
-    if (cols.length < 2) continue;
-
-    // Filtra linhas que parecem totalizadores ou rodapés
-    const primeira = (cols[0] || '').toLowerCase();
-    if (['total', 'subtotal', 'soma', 'média', 'media', 'página', 'pagina', ''].includes(primeira)) continue;
-
-    rows.push(cols);
-  }
-
-  // Guarda mapa de colunas para uso na confirmação
-  window._pdfColMap = indicesColunas;
-  window._pdfCabecalho = cabecalhoCols;
-
-  return rows;
-}
-
 // Converte valor monetário de string para número
 function parseMoeda(v) {
   if (!v) return 0;
@@ -2294,29 +2232,201 @@ function parseMoeda(v) {
   return parseFloat(s) || 0;
 }
 
-// Converte rows do PDF/planilha para o formato de funcionários usado pelo sistema
+// ============================================================
+// PARSER ESPECÍFICO — Formato Confirma/Domínio (Extrato Mensal)
+// ============================================================
+async function parsePDF(arrayBuffer) {
+  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  }
+
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const todasLinhas = [];
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page    = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const linhaMap = {};
+    content.items.forEach(item => {
+      const y = Math.round(item.transform[5]);
+      if (!linhaMap[y]) linhaMap[y] = [];
+      linhaMap[y].push({ x: item.transform[4], t: item.str.trim() });
+    });
+    Object.keys(linhaMap).map(Number).sort((a,b) => b-a).forEach(y => {
+      const txt = linhaMap[y].sort((a,b) => a.x-b.x).map(i => i.t).join(' ');
+      if (txt) todasLinhas.push(txt);
+    });
+  }
+
+  return parsearExtratoDominio(todasLinhas);
+}
+
+function parsearExtratoDominio(linhas) {
+  const funcionarios = [];
+  const resumoGeral  = { bruto:0, descontos:0, liquido:0, inss:0, irrf:0, fgts:0, salFamilia:0, liqRescisao:0 };
+  let centoCusto = '';
+
+  // Regex para identificar funcionários
+  const reEmpr   = /^(?:Empr\.|Contr:)\s+(\d+)\s+(.+?)\s+Situação:\s*(\w+)/i;
+  const reSalario = /Salário:\s*([\d.,]+)/i;
+  const reCargo   = /Cargo:\s*\d+\s+(.+?)\s+C\.B\.O:/i;
+  const reDepto   = /C\.Custo:\s*\d+\s*[-–]\s*(.+)/i;
+  const reProvent = /Proventos:\s*([\d.,]+)/i;
+  const reDesc    = /Descontos:\s*([\d.,]+)/i;
+  const reLiq     = /Líquido:.*?(\d[\d.,]+)$/;
+  const reBaseINSS= /Base INSS:\s*([\d.,]+)/i;
+  const reFGTS    = /Valor FGTS:\s*([\d.,]+)/i;
+  const reBaseIRRF= /Base IRRF:\s*([\d.,]+)/i;
+
+  // Regex para resumo geral (última página)
+  const reTotalProv = /Total Geral Proventos:\s*([\d.,]+)/i;
+  const reTotalDesc = /Total Geral Descontos:\s*([\d.,]+)/i;
+  const reTotalLiq  = /Líquido Geral:\s*([\d.,]+)/i;
+  const reINSSSeg   = /INSS Segurado\(Folha\):\s*([\d.,]+)/i;
+  const reIRRFTotal = /IRRF\(Folha\):\s*([\d.,]+)/i;
+  const reFGTSTotal = /Valor do FGTS:\s*([\d.,]+)/i;
+  const reFGTSResc  = /Valor FGTS Rescisório:\s*([\d.,]+)/i;
+  const reSalFam    = /\(\-\)Salário Família:\s*([\d.,]+)/i;
+  const reLiqResc   = /51\s+LIQUIDO RESCISAO.*?D/i;
+
+  let currentFunc = null;
+  let liqRescTotal = 0;
+
+  for (let i = 0; i < linhas.length; i++) {
+    const linha = linhas[i];
+
+    // Centro de custo / departamento
+    const mDepto = linha.match(reDepto);
+    if (mDepto) { centoCusto = mDepto[1].trim(); continue; }
+
+    // Cabeçalho do funcionário
+    const mEmpr = linha.match(reEmpr);
+    if (mEmpr) {
+      if (currentFunc && currentFunc.bruto > 0) funcionarios.push(currentFunc);
+      currentFunc = {
+        nome: mEmpr[2].trim(),
+        situacao: mEmpr[3].trim(),
+        depto: centoCusto || 'Geral',
+        cargo: '',
+        salarioBase: 0,
+        bruto: 0,
+        descontos: 0,
+        liquido: 0,
+        inss: 0,
+        irrf: 0,
+        fgts: 0,
+        salFamilia: 0,
+        liqRescisao: 0,
+      };
+      const mSal = linha.match(reSalario);
+      if (mSal) currentFunc.salarioBase = parseMoeda(mSal[1]);
+      const mCargo = linha.match(reCargo);
+      if (mCargo) currentFunc.cargo = mCargo[1].trim();
+      continue;
+    }
+
+    if (!currentFunc) continue;
+
+    // Cargo (linha seguinte)
+    const mCargo2 = linha.match(/Cargo:\s*\d+\s+(.+?)\s+C\.B\.O:/i);
+    if (mCargo2 && !currentFunc.cargo) currentFunc.cargo = mCargo2[1].trim();
+
+    // Salário família (rubrica 995 ou 224)
+    if (/995\s+SALARIO FAMILIA|224\s+SALARIO FAMILIA/i.test(linha)) {
+      const m = linha.match(/([\d.,]+)\s+P\s*$/);
+      if (m) currentFunc.salFamilia += parseMoeda(m[1]);
+    }
+
+    // IRRF (rubrica 999)
+    if (/999\s+IMPOSTO D RENDA|828\s+IRRF/i.test(linha)) {
+      const m = linha.match(/([\d.,]+)\s+D/);
+      if (m) currentFunc.irrf += parseMoeda(m[1]);
+    }
+
+    // Líquido de Rescisão (rubrica 51)
+    if (/51\s+LIQUIDO RESCISAO/i.test(linha)) {
+      const m = linha.match(/([\d.,]+)\s+D/);
+      if (m) { currentFunc.liqRescisao = parseMoeda(m[1]); liqRescTotal += parseMoeda(m[1]); }
+    }
+
+    // Totais do funcionário
+    const mProv = linha.match(reProvent);
+    if (mProv) currentFunc.bruto = parseMoeda(mProv[1]);
+    const mDesc = linha.match(reDesc);
+    if (mDesc) currentFunc.descontos = parseMoeda(mDesc[1]);
+    const mLiq = linha.match(reLiq);
+    if (mLiq && !linha.includes('Centro de Custo') && !linha.includes('Geral')) {
+      const v = parseMoeda(mLiq[1]);
+      if (v > 0) currentFunc.liquido = v;
+    }
+    const mINSS = linha.match(reBaseINSS);
+    if (mINSS) {
+      // INSS do funcionário = % × base (aparece como "998 I.N.S.S 1 X,XX V D")
+    }
+    const mFGTS = linha.match(reFGTS);
+    if (mFGTS) currentFunc.fgts = parseMoeda(mFGTS[1]);
+
+    // Captura INSS descontado (998 I.N.S.S)
+    if (/998\s+I\.N\.S\.S|826\s+INSS SOBRE|989\s+INSS 13|812\s+INSS FERIAS|821\s+INSS DIFER/i.test(linha)) {
+      const m = linha.match(/([\d.,]+)\s+D(?:\s|$)/);
+      if (m) currentFunc.inss += parseMoeda(m[1]);
+    }
+
+    // RESUMO GERAL (última página)
+    const mTP = linha.match(reTotalProv);   if (mTP) resumoGeral.bruto        = parseMoeda(mTP[1]);
+    const mTD = linha.match(reTotalDesc);   if (mTD) resumoGeral.descontos    = parseMoeda(mTD[1]);
+    const mTL = linha.match(reTotalLiq);    if (mTL) resumoGeral.liquido      = parseMoeda(mTL[1]);
+    const mIS = linha.match(reINSSSeg);     if (mIS) resumoGeral.inss         = parseMoeda(mIS[1]);
+    const mIR = linha.match(reIRRFTotal);   if (mIR) resumoGeral.irrf        += parseMoeda(mIR[1]);
+    const mFG = linha.match(reFGTSTotal);   if (mFG) resumoGeral.fgts        += parseMoeda(mFG[1]);
+    const mFR = linha.match(reFGTSResc);    if (mFR) resumoGeral.fgts        += parseMoeda(mFR[1]);
+    const mSF = linha.match(reSalFam);      if (mSF) resumoGeral.salFamilia   = parseMoeda(mSF[1]);
+  }
+
+  // Último funcionário
+  if (currentFunc && currentFunc.bruto > 0) funcionarios.push(currentFunc);
+  resumoGeral.liqRescisao = liqRescTotal;
+
+  // Armazena resumo global para o dashboard
+  window._pdfResumoGeral = resumoGeral;
+  window._pdfColMap = {};
+
+  // Monta rows para preview
+  const rows = [['Nome','Depto','Cargo','Situação','Salário Base','Proventos','Descontos','Líquido','INSS','IRRF','FGTS','Sal.Família','Liq.Rescisão']];
+  funcionarios.forEach(f => {
+    rows.push([f.nome, f.depto, f.cargo, f.situacao, f.salarioBase, f.bruto, f.descontos, f.liquido, f.inss, f.irrf, f.fgts, f.salFamilia, f.liqRescisao]);
+  });
+
+  window._pdfFuncionarios = funcionarios;
+  return rows;
+}
+
 function rowsParaFuncionarios(rows) {
+  // Se temos dados parseados do Domínio, usa diretamente
+  if (window._pdfFuncionarios && window._pdfFuncionarios.length > 0) {
+    return window._pdfFuncionarios;
+  }
+  // Fallback para planilhas genéricas
   if (rows.length < 2) return [];
   const map = window._pdfColMap || {};
   const funcionarios = [];
-
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
     if (!r || r.length < 2) continue;
-
-    const nome    = r[map.nome    ?? 0] || '';
-    const depto   = r[map.depto   ?? 1] || 'Não informado';
-    const cargo   = r[map.cargo   ?? 2] || 'Não informado';
-    const bruto   = parseMoeda(r[map.bruto    ?? 3]);
-    const desc    = parseMoeda(r[map.descontos ?? 4]);
-    const inss    = parseMoeda(r[map.inss     ?? 5]);
-    const fgts    = parseMoeda(r[map.fgts     ?? 6]);
-    const liquido = parseMoeda(r[map.liquido  ?? 7]) || (bruto - desc - inss);
-
+    const nome    = r[0] || '';
+    const depto   = r[1] || 'Não informado';
+    const cargo   = r[2] || 'Não informado';
+    const bruto   = parseMoeda(r[5]);
+    const desc    = parseMoeda(r[6]);
+    const inss    = parseMoeda(r[8]);
+    const irrf    = parseMoeda(r[9]);
+    const fgts    = parseMoeda(r[10]);
+    const liquido = parseMoeda(r[7]);
+    const salFam  = parseMoeda(r[11]);
+    const liqResc = parseMoeda(r[12]);
     if (!nome || bruto === 0) continue;
-    funcionarios.push({ nome, depto, cargo, bruto, descontos: desc, inss, fgts, liquido });
+    funcionarios.push({ nome, depto, cargo, bruto, descontos: desc, liquido, inss, irrf, fgts, salFamilia: salFam, liqRescisao: liqResc });
   }
-
   return funcionarios;
 }
 
@@ -2430,7 +2540,12 @@ function confirmarImportacaoFolha() {
     return;
   }
 
-  state.folhas.push({ empresa, competencia: comp, tipo, funcionarios });
+  // Captura resumo geral do PDF Domínio se disponível
+  const resumoGeral = window._pdfResumoGeral || null;
+  window._pdfResumoGeral = null;
+  window._pdfFuncionarios = null;
+
+  state.folhas.push({ empresa, competencia: comp, tipo, funcionarios, resumoGeral });
   salvarDados();
   renderListaFolhas();
   limparUploadFolha();
