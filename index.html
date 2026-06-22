@@ -2009,18 +2009,38 @@ function updateDashboard() {
   const empresasAtivas = Object.keys(empresaMap).length;
   const deptos = Object.keys(deptoMap).length;
 
-  // TOTAIS IMPOSTOS
-  let totalINSS = 0, totalFGTS = 0, totalDescontos = 0, totalLiquido = 0;
+  // TOTAIS IMPOSTOS — usa resumoGeral do PDF quando disponível
+  let totalBruto = 0, totalINSS = 0, totalFGTS = 0, totalDescontos = 0, totalLiquido = 0;
+  let totalIRRF = 0, totalSalFamilia = 0, totalLiqRescisao = 0;
+
   folhasFiltradas.forEach(f => {
-    f.funcionarios.forEach(fn => {
-      totalINSS      += fn.inss      || 0;
-      totalFGTS      += fn.fgts      || 0;
-      totalDescontos += fn.descontos || 0;
-      totalLiquido   += fn.liquido   || 0;
-    });
+    if (f.resumoGeral && f.resumoGeral.bruto > 0) {
+      // Usa dados consolidados do PDF (mais precisos)
+      totalBruto       += f.resumoGeral.bruto       || 0;
+      totalINSS        += f.resumoGeral.inss         || 0;
+      totalIRRF        += f.resumoGeral.irrf         || 0;
+      totalFGTS        += f.resumoGeral.fgts         || 0;
+      totalSalFamilia  += f.resumoGeral.salFamilia   || 0;
+      totalLiqRescisao += f.resumoGeral.liqRescisao  || 0;
+      totalLiquido     += f.resumoGeral.liquido       || 0;
+      totalDescontos   += f.resumoGeral.descontos     || 0;
+    } else {
+      // Fallback: soma dos funcionários
+      f.funcionarios.forEach(fn => {
+        totalBruto       += fn.bruto        || 0;
+        totalINSS        += fn.inss         || 0;
+        totalIRRF        += fn.irrf         || 0;
+        totalFGTS        += fn.fgts         || 0;
+        totalSalFamilia  += fn.salFamilia   || 0;
+        totalLiqRescisao += fn.liqRescisao  || 0;
+        totalDescontos   += fn.descontos    || 0;
+        totalLiquido     += fn.liquido      || 0;
+      });
+    }
   });
-  const totalEncargos = totalINSS + totalFGTS + totalDescontos;
-  const totalRH = totalFolha + totalBenef;
+
+  const totalEncargos = totalINSS + totalFGTS + totalIRRF;
+  const totalRH = (totalBruto || totalFolha) + totalBenef;
 
   // KPIs principais
   document.getElementById('kpi-total').textContent = fmt(totalBruto || totalFolha);
@@ -2060,12 +2080,15 @@ function updateDashboard() {
 
   // Gráfico de evolução anual
   const cardEvolucao = document.getElementById('card-evolucao-anual');
-  if (anoFiltro) {
-    cardEvolucao.style.display = '';
-    document.getElementById('evolucao-anual-sub').textContent = `Custo mês a mês · ${anoFiltro}`;
-    renderChartEvolucao(anoFiltro);
-  } else {
-    cardEvolucao.style.display = 'none';
+  if (cardEvolucao) {
+    if (anoFiltro) {
+      cardEvolucao.style.display = '';
+      const subEl = document.getElementById('evolucao-anual-sub');
+      if (subEl) subEl.textContent = `Custo mês a mês · ${anoFiltro}`;
+      renderChartEvolucao(anoFiltro);
+    } else {
+      cardEvolucao.style.display = 'none';
+    }
   }
 }
 
@@ -2268,155 +2291,171 @@ async function parsePDF(arrayBuffer) {
   }
 
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const todasLinhas = [];
+  let textoCompleto = '';
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page    = await pdf.getPage(p);
     const content = await page.getTextContent();
-    const linhaMap = {};
-    content.items.forEach(item => {
-      const y = Math.round(item.transform[5]);
-      if (!linhaMap[y]) linhaMap[y] = [];
-      linhaMap[y].push({ x: item.transform[4], t: item.str.trim() });
-    });
-    Object.keys(linhaMap).map(Number).sort((a,b) => b-a).forEach(y => {
-      const txt = linhaMap[y].sort((a,b) => a.x-b.x).map(i => i.t).join(' ');
-      if (txt) todasLinhas.push(txt);
+    // Coleta todos os items com posição
+    const items = content.items.map(item => ({
+      x: Math.round(item.transform[4]),
+      y: Math.round(item.transform[5]),
+      t: item.str
+    }));
+    // Agrupa por Y (linha)
+    const ys = [...new Set(items.map(i => i.y))].sort((a,b) => b-a);
+    ys.forEach(y => {
+      const linha = items.filter(i => i.y === y).sort((a,b) => a.x-b.x).map(i => i.t).join(' ');
+      if (linha.trim()) textoCompleto += linha.trim() + '\n';
     });
   }
 
-  return parsearExtratoDominio(todasLinhas);
+  console.log('[PDF Raw] Total chars:', textoCompleto.length);
+  console.log('[PDF Raw] Primeiras 500 chars:', textoCompleto.substring(0,500));
+  return parsearExtratoDominio(textoCompleto);
 }
 
-function parsearExtratoDominio(linhas) {
+function parsearExtratoDominio(texto) {
+  // Trabalha com o texto completo do PDF
+  const linhas = texto.split('\n');
   const funcionarios = [];
   const resumoGeral = { bruto:0, descontos:0, liquido:0, inss:0, irrf:0, fgts:0, salFamilia:0, liqRescisao:0 };
-  let centoCusto = '';
+  let centoCusto = 'Geral';
   let currentFunc = null;
   let liqRescTotal = 0;
 
-  // Normaliza string removendo acentos para regex mais robusta
-  const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const pm = v => {
+    if (!v) return 0;
+    return parseFloat(String(v).replace(/\./g,'').replace(',','.')) || 0;
+  };
 
   for (let i = 0; i < linhas.length; i++) {
-    const linha  = linhas[i];
-    const linhaN = norm(linha);
+    const L = linhas[i].trim();
+    if (!L) continue;
+    const Ln = L.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 
-    // --- CENTRO DE CUSTO / DEPARTAMENTO ---
-    // Ex: "C.Custo: 2 - VILA MARIANA" ou "C.Custo: 2 – VILA MARIANA"
-    const mCC = linhaN.match(/c\.custo:\s*\d+\s*[-–]\s*(.+)/);
-    if (mCC) {
-      // Pega o texto original preservando maiúsculas
-      const orig = linha.match(/C\.Custo:\s*\d+\s*[-–]\s*(.+)/i);
-      centoCusto = orig ? orig[1].trim() : mCC[1].trim();
+    // CENTRO DE CUSTO
+    // "C.Custo: 2 - VILA MARIANA" ou "C.Custo: 2 VILA MARIANA"
+    if (Ln.match(/c\.?custo\s*:/)) {
+      const m = L.match(/C\.?Custo\s*:\s*\d+\s*[-\u2013]?\s*(.+)/i);
+      if (m) centoCusto = m[1].trim();
       continue;
     }
 
-    // --- CABEÇALHO DO FUNCIONÁRIO ---
-    // Ex: "Empr.: 107 CAIO MARCONDES VICCO Situação: Demitido CPF: ..."
-    // Ex: "Contr: 5 FABIO HELBIG LONGHI Situação: Trabalhando CPF: ..."
-    const mEmpr = linhaN.match(/^(?:empr\.:|contr:)\s*(\d+)\s+(.+?)\s+situacao:\s*(\w+)/);
-    if (mEmpr) {
+    // CABEÇALHO DO FUNCIONÁRIO
+    // "Empr.: 107 CAIO MARCONDES VICCO Situação: Demitido CPF: ..."
+    if (Ln.match(/empr\.?\s*:?\s*\d+/) && Ln.match(/situa/)) {
       if (currentFunc && currentFunc.bruto > 0) funcionarios.push({...currentFunc});
-      // Nome: pega do original entre número e "Situação:"
-      const origNome = linha.match(/(?:Empr\.:|Contr:)\s*\d+\s+(.+?)\s+Situa/i);
-      const nome = origNome ? origNome[1].trim() : mEmpr[2].trim();
+      const mNome = L.match(/Empr\.?\s*:?\s*\d+\s+(.+?)\s+Situa/i);
+      const mSit  = Ln.match(/situa[^\s]*\s*:\s*(\w+)/);
+      const mSal  = L.match(/Sal[aá]rio\s*:\s*([\d.,]+)/i);
+      const mCarg = L.match(/Cargo\s*:\s*\d+\s+(.+?)\s+C\.B\.O/i);
       currentFunc = {
-        nome, situacao: mEmpr[3],
-        depto: centoCusto || 'Geral',
-        cargo: '', salarioBase: 0,
-        bruto: 0, descontos: 0, liquido: 0,
-        inss: 0, irrf: 0, fgts: 0,
-        salFamilia: 0, liqRescisao: 0,
+        nome: mNome ? mNome[1].trim() : '',
+        situacao: mSit ? mSit[1] : '',
+        depto: centoCusto,
+        cargo: mCarg ? mCarg[1].trim() : '',
+        salarioBase: mSal ? pm(mSal[1]) : 0,
+        bruto:0, descontos:0, liquido:0,
+        inss:0, irrf:0, fgts:0, salFamilia:0, liqRescisao:0
       };
-      // Salário base na mesma linha
-      const mSal = linha.match(/Sal[aá]rio:\s*([\d.,]+)/i);
-      if (mSal) currentFunc.salarioBase = parseMoeda(mSal[1]);
-      // Cargo na mesma linha
-      const mCarg = linha.match(/Cargo:\s*\d+\s+(.+?)\s+C\.B\.O:/i);
-      if (mCarg) currentFunc.cargo = mCarg[1].trim();
+      continue;
+    }
+
+    // CONTR: (diretor/sócio)
+    if (Ln.match(/contr\s*:\s*\d+/) && Ln.match(/situa/)) {
+      if (currentFunc && currentFunc.bruto > 0) funcionarios.push({...currentFunc});
+      const mNome = L.match(/Contr\s*:\s*\d+\s+(.+?)\s+Situa/i);
+      const mSit  = Ln.match(/situa[^\s]*\s*:\s*(\w+)/);
+      const mSal  = L.match(/Sal[aá]rio\s*:\s*([\d.,]+)/i);
+      currentFunc = {
+        nome: mNome ? mNome[1].trim() : '',
+        situacao: mSit ? mSit[1] : '',
+        depto: centoCusto,
+        cargo: 'Diretor/Contribuinte',
+        salarioBase: mSal ? pm(mSal[1]) : 0,
+        bruto:0, descontos:0, liquido:0,
+        inss:0, irrf:0, fgts:0, salFamilia:0, liqRescisao:0
+      };
       continue;
     }
 
     if (!currentFunc) {
-      // Ainda fora de funcionário — captura resumo geral
-      capturaResumoGeral(linhaN, linha, resumoGeral);
+      // Captura resumo geral fora de funcionários
+      capturaResumoGeral(Ln, L, resumoGeral);
       continue;
     }
 
-    // --- CARGO (pode vir na linha seguinte) ---
-    if (!currentFunc.cargo) {
-      const mC = linha.match(/Cargo:\s*\d+\s+(.+?)\s+C\.B\.O:/i);
-      if (mC) currentFunc.cargo = mC[1].trim();
+    // CARGO na próxima linha
+    if (!currentFunc.cargo && L.match(/Cargo\s*:\s*\d+/i)) {
+      const m = L.match(/Cargo\s*:\s*\d+\s+(.+?)\s+C\.B\.O/i);
+      if (m) currentFunc.cargo = m[1].trim();
     }
 
-    // --- RUBRICAS DE PROVENTOS/DESCONTOS ---
-
-    // Salário família (995, 224)
-    if (/(995|224)/.test(linha) && /SALARIO FAMILIA/i.test(linha)) {
-      const m = linha.match(/([\d.,]+)\s+P/);
-      if (m) currentFunc.salFamilia += parseMoeda(m[1]);
+    // LINHA DE TOTAIS: "ND: X Proventos: X Descontos: X Líquido: ..."
+    if (Ln.includes('proventos:') && Ln.includes('descontos:')) {
+      const mP = Ln.match(/proventos:\s*([\d.,]+)/);
+      const mD = Ln.match(/descontos:\s*([\d.,]+)/);
+      if (mP) currentFunc.bruto     = pm(mP[1]);
+      if (mD) currentFunc.descontos = pm(mD[1]);
+      // Líquido = último valor monetário da linha
+      const nums = L.match(/[\d]{1,3}(?:\.\d{3})*,\d{2}/g) || [];
+      if (nums.length > 0) currentFunc.liquido = pm(nums[nums.length-1]);
+      else currentFunc.liquido = currentFunc.bruto - currentFunc.descontos;
+      continue;
     }
 
-    // IRRF (999 IMPOSTO D RENDA, 828 IRRF)
-    if ((/999/.test(linha) && /IMPOSTO/i.test(linha)) ||
-        (/828/.test(linha) && /IRRF/i.test(linha))) {
-      const m = linha.match(/([\d.,]+)\s+D/);
-      if (m) currentFunc.irrf += parseMoeda(m[1]);
+    // VALOR FGTS do funcionário
+    if (Ln.includes('valor fgts:')) {
+      const m = Ln.match(/valor fgts:\s*([\d.,]+)/);
+      if (m) currentFunc.fgts = pm(m[1]);
+      continue;
     }
 
-    // Líquido rescisão (51)
-    if (/51/.test(linha) && /LIQUIDO RESCISAO/i.test(linha)) {
-      const m = linha.match(/([\d.,]+)\s+D/);
-      if (m) { currentFunc.liqRescisao = parseMoeda(m[1]); liqRescTotal += parseMoeda(m[1]); }
-    }
-
-    // INSS do funcionário (998, 826, 989, 812, 821, 843)
-    if (/(998|826|989|812|821|843)/.test(linha) &&
-        /I\.N\.S\.S|INSS/i.test(linha)) {
-      const m = linha.match(/([\d.,]+)\s+D(?:\s|$)/);
-      if (m) currentFunc.inss += parseMoeda(m[1]);
-    }
-
-    // FGTS do funcionário (linha "Valor FGTS: X")
-    const mFGTS = linhaN.match(/valor fgts:\s*([\d.,]+)/);
-    if (mFGTS) currentFunc.fgts = parseMoeda(mFGTS[1]);
-
-    // Totais do funcionário (linha ND/NF)
-    // "ND: 0 Proventos: 3.701,04 Descontos: 3.701,04 Líquido: ..."
-    const mProv = linhaN.match(/proventos:\s*([\d.,]+)/);
-    if (mProv) currentFunc.bruto = parseMoeda(mProv[1]);
-
-    const mDesc = linhaN.match(/descontos:\s*([\d.,]+)/);
-    if (mDesc) currentFunc.descontos = parseMoeda(mDesc[1]);
-
-    // Líquido: pode ser "Líquido: 621,98" ou "Líquido: Informativa: ..."
-    // O valor líquido real é o último número da linha ND/NF
-    if (linhaN.includes('proventos:') && linhaN.includes('descontos:')) {
-      // Pega o último número da linha como líquido
-      const nums = linha.match(/([\d.,]+)/g);
-      if (nums && nums.length >= 2) {
-        const ultimo = parseMoeda(nums[nums.length - 1]);
-        if (ultimo > 0) currentFunc.liquido = ultimo;
+    // RUBRICAS na linha
+    // Pode ter 1 ou 2 rubricas por linha
+    // Formato: "COD DESCRICAO [QTD] VALOR P/D"
+    const reRub = /(\d{1,4})\s+[A-Z\u00C0-\u00FF][A-Z\u00C0-\u00FF0-9 .\/()]+\s+([\d.,]+)\s+([PD])/g;
+    let mr;
+    while ((mr = reRub.exec(L)) !== null) {
+      const cod   = mr[1];
+      const valor = pm(mr[2]);
+      const tipo  = mr[3];
+      // INSS: 998, 826, 989, 812, 821, 843
+      if (['998','826','989','812','821','843'].includes(cod) && tipo==='D') {
+        currentFunc.inss += valor;
+      }
+      // Salário Família: 995, 224
+      if (['995','224'].includes(cod) && tipo==='P') {
+        currentFunc.salFamilia += valor;
+      }
+      // IRRF: 999, 828
+      if (['999','828'].includes(cod) && tipo==='D') {
+        currentFunc.irrf += valor;
+      }
+      // Líquido Rescisão: 51
+      if (cod==='51' && tipo==='D') {
+        currentFunc.liqRescisao = valor;
+        liqRescTotal += valor;
       }
     }
 
-    // Captura resumo geral também dentro do loop (última página)
-    capturaResumoGeral(linhaN, linha, resumoGeral);
+    // Captura resumo geral também
+    capturaResumoGeral(Ln, L, resumoGeral);
   }
 
   // Último funcionário
   if (currentFunc && currentFunc.bruto > 0) funcionarios.push({...currentFunc});
   resumoGeral.liqRescisao = liqRescTotal;
 
-  console.log('[PDF Parser] Funcionários encontrados:', funcionarios.length);
-  console.log('[PDF Parser] Resumo Geral:', resumoGeral);
+  console.log('[PDF Parser] Funcionarios:', funcionarios.length);
+  console.log('[PDF Parser] Resumo Geral:', JSON.stringify(resumoGeral));
+  if (funcionarios[0]) console.log('[PDF Parser] 1o func:', JSON.stringify(funcionarios[0]));
 
   window._pdfResumoGeral = (resumoGeral.bruto > 0 || resumoGeral.inss > 0) ? resumoGeral : null;
   window._pdfColMap = {};
 
-  // Monta rows para preview
-  const rows = [['Nome','Depto','Cargo','Situação','Sal.Base','Proventos','Descontos','Líquido','INSS','IRRF','FGTS','Sal.Fam','Liq.Resc']];
+  const rows = [['Nome','Depto','Cargo','Situacao','Sal.Base','Proventos','Descontos','Liquido','INSS','IRRF','FGTS','Sal.Fam','Liq.Resc']];
   funcionarios.forEach(f => rows.push([
     f.nome, f.depto, f.cargo, f.situacao,
     f.salarioBase, f.bruto, f.descontos, f.liquido,
@@ -2429,43 +2468,52 @@ function parsearExtratoDominio(linhas) {
 
 function capturaResumoGeral(linhaN, linhaOrig, resumoGeral) {
   let m;
+
+  // Total Geral Proventos
   m = linhaN.match(/total geral proventos:\s*([\d.,]+)/);
   if (m) resumoGeral.bruto = parseMoeda(m[1]);
 
+  // Total Geral Descontos
   m = linhaN.match(/total geral descontos:\s*([\d.,]+)/);
   if (m) resumoGeral.descontos = parseMoeda(m[1]);
 
-  // "Líquido Geral: 117.915,18" — aparece duas vezes, usa a maior
+  // Líquido Geral
   m = linhaN.match(/liquido geral:\s*([\d.,]+)/);
   if (m) { const v = parseMoeda(m[1]); if (v > resumoGeral.liquido) resumoGeral.liquido = v; }
-
-  // INSS Segurado(Folha): 12.761,59
-  m = linhaN.match(/inss segurado\(folha\):\s*([\d.,]+)/);
-  if (!m) m = linhaN.match(/segurados:\s*([\d.,]+)/);
-  if (m && resumoGeral.inss === 0) resumoGeral.inss = parseMoeda(m[1]);
 
   // Total INSS (linha "Total INSS: 12.761,59")
   m = linhaN.match(/^total inss:\s*([\d.,]+)/);
   if (m) resumoGeral.inss = parseMoeda(m[1]);
 
-  // IRRF(Folha): — pode aparecer como "IRRF(Folha): 370,34"
-  m = linhaN.match(/irrf\(folha\):\s*([\d.,]+)/);
-  if (!m) m = linhaN.match(/valor total do irrf:\s*([\d.,]+)/);
+  // Segurados (fallback)
+  if (resumoGeral.inss === 0) {
+    m = linhaN.match(/^segurados:\s*([\d.,]+)/);
+    if (m) resumoGeral.inss = parseMoeda(m[1]);
+  }
+
+  // IRRF Total
+  m = linhaN.match(/valor total do irrf:\s*([\d.,]+)/);
   if (m) { const v = parseMoeda(m[1]); if (v > 0 && resumoGeral.irrf === 0) resumoGeral.irrf = v; }
 
-  // FGTS — "Valor do FGTS: 10.947,12"
+  // IRRF Folha
+  if (resumoGeral.irrf === 0) {
+    m = linhaN.match(/irrf\s*\(\s*folha\s*\)\s*:\s*([\d.,]+)/);
+    if (m) resumoGeral.irrf = parseMoeda(m[1]);
+  }
+
+  // Valor do FGTS (mensal)
   m = linhaN.match(/valor do fgts:\s*([\d.,]+)/);
   if (m) resumoGeral.fgts += parseMoeda(m[1]);
 
-  // FGTS rescisório
+  // Valor FGTS Rescisório
   m = linhaN.match(/valor fgts rescisorio:\s*([\d.,]+)/);
   if (m) resumoGeral.fgts += parseMoeda(m[1]);
 
-  // Salário família — "(-) Salário Família: 576,34"  ou  "(-) Salario Familia: ..."
-  m = linhaN.match(/\(-\)\s*salari[oa]\s+famili[ai]:\s*([\d.,]+)/);
-  if (!m) m = linhaN.match(/salari[oa] familia.*?:\s*([\d.,]+)/);
+  // Salário Família  "(-) Salario Familia: 576,34"
+  m = linhaN.match(/salari[oa]\s+famili[a]:\s*([\d.,]+)/);
   if (m) resumoGeral.salFamilia = parseMoeda(m[1]);
 }
+
 
 function rowsParaFuncionarios(rows) {
   // Se temos dados parseados do Domínio, usa diretamente
