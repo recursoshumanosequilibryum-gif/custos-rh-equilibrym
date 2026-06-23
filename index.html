@@ -1921,7 +1921,7 @@ function showPage(id) {
   
   const t = titles[id] || [id, ''];
   document.getElementById('page-title').textContent = t[0];
-  document.getElementById('page-sub').textContent = t[1];
+  (document.getElementById('page-sub')||{textContent:''}).textContent = t[1];
   
   if (id === 'dashboard') updateDashboard();
   if (id === 'empresas') renderListaEmpresas();
@@ -1954,7 +1954,7 @@ function updateDashboard() {
   }
 
   // Atualiza subtítulo do topbar
-  document.getElementById('page-sub').textContent = `Visão ${dashTab} · ${periodoLabel}`;
+  (document.getElementById('page-sub')||{textContent:''}).textContent = `Visão ${dashTab} · ${periodoLabel}`;
 
   // TOTAIS FOLHA
   let totalFolha = 0, totalFunc = 0;
@@ -2055,7 +2055,7 @@ function updateDashboard() {
   const totalRH = (totalBruto || totalFolha) + totalBenef;
 
   // KPIs principais
-  document.getElementById('kpi-total').textContent = fmt(totalBruto || totalFolha);
+  (document.getElementById('kpi-total')||{textContent:''}).textContent = fmt(totalBruto || totalFolha);
   const el_liq = document.getElementById('kpi-liquido'); if(el_liq){ el_liq.textContent = fmt(totalLiquido); }
   const el_liqsub = document.getElementById('kpi-liquido-sub'); if(el_liqsub){ el_liqsub.textContent = totalLiquido > 0 ? `${((totalLiquido/(totalBruto||totalFolha||1))*100).toFixed(1)}% do bruto` : 'após todos os descontos'; }
   // Atualiza KPIs com segurança (null-safe)
@@ -2077,19 +2077,17 @@ function updateDashboard() {
   setKPI('kpi-irrf',        fmt(totalIRRF));
   setKPI('kpi-salfam',      fmt(totalSalFamilia));
   setKPI('kpi-liqresc',     fmt(totalLiqRescisao));
-  setKPI('kpi-impostos',    fmt(totalEncargos));
-  setKPI('kpi-impostos-sub',`${totalFolha > 0 ? ((totalEncargos/totalFolha)*100).toFixed(1) : 0}% da folha bruta`);
-  document.getElementById('kpi-total-rh-sub').textContent = `${totalFolha > 0 ? ((totalBenef/totalRH)*100).toFixed(1) : 0}% benefícios`;
-
-  // Strip encargos detalhado
-  document.getElementById('strip-bruto').textContent       = fmt(totalBruto || totalFolha);
-  document.getElementById('strip-liquido').textContent     = fmt(totalLiquido);
-  document.getElementById('strip-inss').textContent        = fmt(totalINSS);
-  document.getElementById('strip-irrf').textContent        = fmt(totalIRRF);
-  document.getElementById('strip-fgts').textContent        = fmt(totalFGTS);
-  document.getElementById('strip-salfam').textContent      = fmt(totalSalFamilia);
-  document.getElementById('strip-liqresc').textContent     = fmt(totalLiqRescisao);
-  document.getElementById('strip-total-enc').textContent   = fmt(totalEncargos);
+  setKPI('kpi-impostos',     fmt(totalEncargos));
+  setKPI('kpi-impostos-sub', `${totalFolha > 0 ? ((totalEncargos/totalFolha)*100).toFixed(1) : 0}% da folha bruta`);
+  setKPI('kpi-total-rh-sub', `${totalFolha > 0 ? ((totalBenef/(totalRH||1))*100).toFixed(1) : 0}% benefícios`);
+  setKPI('strip-bruto',       fmt(totalBruto || totalFolha));
+  setKPI('strip-liquido',     fmt(totalLiquido));
+  setKPI('strip-inss',        fmt(totalINSS));
+  setKPI('strip-irrf',        fmt(totalIRRF));
+  setKPI('strip-fgts',        fmt(totalFGTS));
+  setKPI('strip-salfam',      fmt(totalSalFamilia));
+  setKPI('strip-liqresc',     fmt(totalLiqRescisao));
+  setKPI('strip-total-enc',   fmt(totalEncargos));
 
   renderChartCNPJ(empresaMap);
   renderChartDepto(deptoMap);
@@ -2329,7 +2327,9 @@ async function parsePDF(arrayBuffer) {
   }
 
   console.log('[PDF Raw] Total chars:', textoCompleto.length);
-  console.log('[PDF Raw] Primeiras 500 chars:', textoCompleto.substring(0,500));
+  // Log das primeiras 80 linhas para diagnóstico
+  const linhasDebug = textoCompleto.split('\n').slice(0, 80);
+  linhasDebug.forEach((l,i) => { if(l.trim()) console.log(`[L${i}]`, JSON.stringify(l)); });
   return parsearExtratoDominio(textoCompleto);
 }
 
@@ -2597,15 +2597,15 @@ async function handleFileUpload(event, tipo) {
 
     if (tipo === 'folha') {
       uploadedFolhaData = rows;
-      document.getElementById('file-folha-name').textContent = file.name;
-      document.getElementById('file-folha-rows').textContent = `· ${rows.length - 1} linha(s) encontrada(s)`;
+      (document.getElementById('file-folha-name')||{textContent:''}).textContent = file.name;
+      (document.getElementById('file-folha-rows')||{textContent:''}).textContent = `· ${rows.length - 1} linha(s) encontrada(s)`;
       renderPreview('preview-folha-head', 'preview-folha-body', rows);
       document.getElementById('preview-folha').style.display = 'block';
 
       // Mostra aviso de mapeamento se for PDF
       if (isPDF) mostrarAvisoPDF('preview-folha', rows.length - 1);
     } else {
-      document.getElementById('file-benef-name').textContent = file.name;
+      (document.getElementById('file-benef-name')||{textContent:''}).textContent = file.name;
       renderPreview('preview-benef-head', 'preview-benef-body', rows);
       document.getElementById('preview-benef').style.display = 'block';
     }
