@@ -2058,21 +2058,27 @@ function updateDashboard() {
   document.getElementById('kpi-total').textContent = fmt(totalBruto || totalFolha);
   const el_liq = document.getElementById('kpi-liquido'); if(el_liq){ el_liq.textContent = fmt(totalLiquido); }
   const el_liqsub = document.getElementById('kpi-liquido-sub'); if(el_liqsub){ el_liqsub.textContent = totalLiquido > 0 ? `${((totalLiquido/(totalBruto||totalFolha||1))*100).toFixed(1)}% do bruto` : 'após todos os descontos'; }
-  document.getElementById('kpi-total-sub').textContent = `${empresasAtivas} empresa${empresasAtivas !== 1 ? 's' : ''} ativa${empresasAtivas !== 1 ? 's' : ''}`;
-  document.getElementById('kpi-func').textContent = fmtN(totalFunc);
-  document.getElementById('kpi-func-sub').textContent = `em ${deptos} departamento${deptos !== 1 ? 's' : ''}`;
-  document.getElementById('kpi-benef').textContent = fmt(totalBenef);
-  document.getElementById('kpi-media').textContent = fmt(media);
+  // Atualiza KPIs com segurança (null-safe)
+  const setKPI = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+  const totalBrutoFinal = totalBruto || totalFolha;
 
-  // KPIs impostos
-  document.getElementById('kpi-inss').textContent = fmt(totalINSS);
-  document.getElementById('kpi-fgts').textContent = fmt(totalFGTS);
-  const elIRRF = document.getElementById('kpi-irrf'); if(elIRRF) elIRRF.textContent = fmt(totalIRRF);
-  const elSF = document.getElementById('kpi-salfam'); if(elSF) elSF.textContent = fmt(totalSalFamilia);
-  const elLR = document.getElementById('kpi-liqresc'); if(elLR) elLR.textContent = fmt(totalLiqRescisao);
-  document.getElementById('kpi-impostos').textContent = fmt(totalEncargos);
-  document.getElementById('kpi-impostos-sub').textContent = `${totalFolha > 0 ? ((totalEncargos/totalFolha)*100).toFixed(1) : 0}% da folha bruta`;
-  document.getElementById('kpi-total-rh').textContent = fmt(totalRH);
+  setKPI('kpi-total',       fmt(totalBrutoFinal));
+  setKPI('kpi-total-sub',   `${empresasAtivas} empresa${empresasAtivas !== 1 ? 's' : ''} ativa${empresasAtivas !== 1 ? 's' : ''}`);
+  setKPI('kpi-liquido',     fmt(totalLiquido));
+  setKPI('kpi-liquido-sub', totalBrutoFinal > 0 ? `${((totalLiquido/totalBrutoFinal)*100).toFixed(1)}% do bruto` : 'após descontos');
+  setKPI('kpi-func',        fmtN(totalFunc));
+  setKPI('kpi-func-sub',    `em ${deptos} departamento${deptos !== 1 ? 's' : ''}`);
+  setKPI('kpi-benef',       fmt(totalBenef));
+  setKPI('kpi-total-rh',    fmt(totalBrutoFinal + totalBenef));
+  setKPI('kpi-total-rh-sub',`${totalBrutoFinal > 0 ? ((totalBenef/(totalBrutoFinal+totalBenef||1))*100).toFixed(1) : 0}% benefícios`);
+  setKPI('kpi-media',       fmt(media));
+  setKPI('kpi-inss',        fmt(totalINSS));
+  setKPI('kpi-fgts',        fmt(totalFGTS));
+  setKPI('kpi-irrf',        fmt(totalIRRF));
+  setKPI('kpi-salfam',      fmt(totalSalFamilia));
+  setKPI('kpi-liqresc',     fmt(totalLiqRescisao));
+  setKPI('kpi-impostos',    fmt(totalEncargos));
+  setKPI('kpi-impostos-sub',`${totalFolha > 0 ? ((totalEncargos/totalFolha)*100).toFixed(1) : 0}% da folha bruta`);
   document.getElementById('kpi-total-rh-sub').textContent = `${totalFolha > 0 ? ((totalBenef/totalRH)*100).toFixed(1) : 0}% benefícios`;
 
   // Strip encargos detalhado
