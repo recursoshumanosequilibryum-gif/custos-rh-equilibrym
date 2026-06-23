@@ -863,18 +863,18 @@ table.styled thead th {
     <!-- ======================== DASHBOARD ======================== -->
     <div class="page active" id="page-dashboard">
 
-      <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+      <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
         <div class="kpi-card">
           <i class="ti ti-cash kpi-icon"></i>
-          <div class="kpi-label">Custo Total Folha Bruta</div>
+          <div class="kpi-label">Total Folha Bruta</div>
           <div class="kpi-value" id="kpi-total">R$ 0</div>
-          <div class="kpi-sub" id="kpi-total-sub">0 empresas ativas</div>
+          <div class="kpi-sub" id="kpi-total-sub">0 empresas</div>
         </div>
-        <div class="kpi-card" style="">
-          <i class="ti ti-cash kpi-icon" style="color:#E8F5E9"></i>
-          <div class="kpi-label">Custo Total Folha Líquida</div>
+        <div class="kpi-card">
+          <i class="ti ti-wallet kpi-icon" style="color:var(--teal-light)"></i>
+          <div class="kpi-label">Total Folha Líquida</div>
           <div class="kpi-value" id="kpi-liquido" style="color:#27AE60">R$ 0</div>
-          <div class="kpi-sub" id="kpi-liquido-sub">após todos os descontos</div>
+          <div class="kpi-sub" id="kpi-liquido-sub">após descontos</div>
         </div>
         <div class="kpi-card slate">
           <i class="ti ti-users kpi-icon"></i>
@@ -884,104 +884,44 @@ table.styled thead th {
         </div>
         <div class="kpi-card amber">
           <i class="ti ti-gift kpi-icon" style="color:#FFF3E0"></i>
-          <div class="kpi-label">Custo Total Benefícios</div>
+          <div class="kpi-label">Total Benefícios</div>
           <div class="kpi-value" id="kpi-benef">R$ 0</div>
-          <div class="kpi-sub" id="kpi-benef-sub">VA, VR, Combustível e outros</div>
+          <div class="kpi-sub">VA, VR, Combustível e outros</div>
         </div>
         <div class="kpi-card green">
           <i class="ti ti-trending-up kpi-icon" style="color:#E8F5E9"></i>
-          <div class="kpi-label">Custo Médio por Colaborador</div>
-          <div class="kpi-value" id="kpi-media">R$ 0</div>
-          <div class="kpi-sub">folha + benefícios</div>
-        </div>
-        <div class="kpi-card" style="">
-          <i class="ti ti-receipt-tax kpi-icon" style="color:#F3E5F5"></i>
-          <div class="kpi-label">INSS Segurado</div>
-          <div class="kpi-value" id="kpi-inss" style="color:#6A1B9A">R$ 0</div>
-          <div class="kpi-sub" id="kpi-inss-sub">descontado do colaborador</div>
-        </div>
-        <div class="kpi-card" style="">
-          <i class="ti ti-file-invoice kpi-icon" style="color:#FCE4EC"></i>
-          <div class="kpi-label">IRRF Folha</div>
-          <div class="kpi-value" id="kpi-irrf" style="color:#BF360C">R$ 0</div>
-          <div class="kpi-sub">imposto de renda retido</div>
-        </div>
-        <div class="kpi-card" style="">
-          <i class="ti ti-heart kpi-icon" style="color:#E8F5E9"></i>
-          <div class="kpi-label">Salário Família</div>
-          <div class="kpi-value" id="kpi-salfam" style="color:#2E7D32">R$ 0</div>
-          <div class="kpi-sub">benefício legal</div>
-        </div>
-        <div class="kpi-card" style="">
-          <i class="ti ti-clipboard-x kpi-icon" style="color:#FFF3E0"></i>
-          <div class="kpi-label">Líquido Rescisão</div>
-          <div class="kpi-value" id="kpi-liqresc" style="color:#E65100">R$ 0</div>
-          <div class="kpi-sub">verbas rescisórias</div>
-        </div>
-        <div class="kpi-card" style="">
-          <i class="ti ti-building-bank kpi-icon" style="color:#E3F2FD"></i>
-          <div class="kpi-label">Total FGTS</div>
-          <div class="kpi-value" id="kpi-fgts" style="color:#1565C0">R$ 0</div>
-          <div class="kpi-sub" id="kpi-fgts-sub">8% sobre salário bruto</div>
-        </div>
-        <div class="kpi-card" style="">
-          <i class="ti ti-calculator kpi-icon" style="color:#FCE4EC"></i>
-          <div class="kpi-label">Total Impostos</div>
-          <div class="kpi-value" id="kpi-impostos" style="color:#C62828">R$ 0</div>
-          <div class="kpi-sub" id="kpi-impostos-sub">INSS + FGTS + Outros</div>
-        </div>
-        <div class="kpi-card" style="">
-          <i class="ti ti-chart-pie kpi-icon" style="color:#E8F5E9"></i>
           <div class="kpi-label">Custo Total RH</div>
           <div class="kpi-value" id="kpi-total-rh" style="color:#1B5E20">R$ 0</div>
-          <div class="kpi-sub" id="kpi-total-rh-sub">folha + benefícios + impostos</div>
+          <div class="kpi-sub" id="kpi-total-rh-sub">folha + benefícios</div>
         </div>
       </div>
 
-      <!-- STRIP IMPOSTOS -->
-      <div class="card" style="margin-bottom:20px">
-        <div class="card-header" style="background:linear-gradient(90deg,#1A237E,#283593);border-radius:11px 11px 0 0;padding:14px 20px">
-          <i class="ti ti-receipt-tax" style="color:#90CAF9;font-size:18px"></i>
+      <!-- TABELA POR CNPJ NO DASHBOARD -->
+      <div class="card" style="margin-bottom:20px" id="card-resumo-cnpj">
+        <div class="card-header" style="background:var(--slate-dark);border-radius:11px 11px 0 0">
+          <i class="ti ti-building" style="color:var(--teal-mid);font-size:18px"></i>
           <div>
-            <div class="card-title" style="color:white">Encargos & Impostos do Mês</div>
-            <div class="card-sub" style="color:rgba(255,255,255,0.6)">Visão consolidada de todos os encargos trabalhistas</div>
+            <div class="card-title" style="color:white">Resumo por CNPJ</div>
+            <div class="card-sub" id="resumo-cnpj-sub" style="color:rgba(255,255,255,0.6)">Consolidado do período</div>
           </div>
         </div>
-        <div class="summary-strip" style="border:none;border-radius:0;flex-wrap:wrap">
-          <div class="summary-item">
-            <div class="val" id="strip-bruto" style="color:#1A237E">R$ 0</div>
-            <div class="lbl">Folha Bruta</div>
-          </div>
-          <div class="summary-item">
-            <div class="val" id="strip-liquido" style="color:#27AE60">R$ 0</div>
-            <div class="lbl">Folha Líquida</div>
-          </div>
-          <div class="summary-item">
-            <div class="val" id="strip-inss" style="color:#6A1B9A">R$ 0</div>
-            <div class="lbl">INSS Segurado</div>
-          </div>
-          <div class="summary-item">
-            <div class="val" id="strip-irrf" style="color:#BF360C">R$ 0</div>
-            <div class="lbl">IRRF Folha</div>
-          </div>
-          <div class="summary-item">
-            <div class="val" id="strip-fgts" style="color:#1565C0">R$ 0</div>
-            <div class="lbl">FGTS</div>
-          </div>
-          <div class="summary-item">
-            <div class="val" id="strip-salfam" style="color:#2E7D32">R$ 0</div>
-            <div class="lbl">Salário Família</div>
-          </div>
-          <div class="summary-item">
-            <div class="val" id="strip-liqresc" style="color:#E65100">R$ 0</div>
-            <div class="lbl">Líquido Rescisão</div>
-          </div>
-          <div class="summary-item" style="background:var(--gray-50)">
-            <div class="val" id="strip-total-enc" style="color:#C62828;font-size:20px">R$ 0</div>
-            <div class="lbl">Total Encargos</div>
-          </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Empresa</th>
+              <th>CNPJ</th>
+              <th class="td-right">Colaboradores</th>
+              <th class="td-right">Folha Bruta</th>
+              <th class="td-right">Folha Líquida</th>
+              <th class="td-right">% do Total</th>
+            </tr></thead>
+            <tbody id="tbody-resumo-cnpj">
+              <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Importe folhas para visualizar</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
+
 
       <div class="grid-2">
         <div class="card">
@@ -1159,6 +1099,7 @@ table.styled thead th {
           <div class="card-actions">
             <button class="btn btn-outline" onclick="gerarRelCNPJ()"><i class="ti ti-refresh"></i> Gerar</button>
             <button class="btn btn-primary" onclick="exportarRelCNPJPDF()"><i class="ti ti-download"></i> PDF</button>
+            <button class="btn btn-outline" onclick="exportarRelCNPJExcel()" style="color:#1B5E20;border-color:#1B5E20"><i class="ti ti-file-spreadsheet"></i> Excel</button>
             <button class="btn btn-success" onclick="salvarDriveRel('cnpj')"><i class="ti ti-brand-google-drive"></i> Drive</button>
           </div>
         </div>
@@ -1207,6 +1148,7 @@ table.styled thead th {
           <div class="card-actions">
             <button class="btn btn-outline" onclick="gerarRelDepto()"><i class="ti ti-refresh"></i> Gerar</button>
             <button class="btn btn-primary" onclick="exportarRelDeptoPDF()"><i class="ti ti-download"></i> PDF</button>
+            <button class="btn btn-outline" onclick="exportarRelDeptoExcel()" style="color:#1B5E20;border-color:#1B5E20"><i class="ti ti-file-spreadsheet"></i> Excel</button>
             <button class="btn btn-success" onclick="salvarDriveRel('departamento')"><i class="ti ti-brand-google-drive"></i> Drive</button>
           </div>
         </div>
@@ -1827,6 +1769,76 @@ function renderListaEmpresas() {
     </div>`;
 }
 
+
+
+// ============================================================
+// RESUMO POR CNPJ NO DASHBOARD
+// ============================================================
+function renderResumoCNPJDashboard(folhasFiltradas, totalGeral, periodoLabel) {
+  const tbody = document.getElementById('tbody-resumo-cnpj');
+  const sub   = document.getElementById('resumo-cnpj-sub');
+  if (!tbody) return;
+  if (sub) sub.textContent = `Consolidado · ${periodoLabel}`;
+
+  if (!folhasFiltradas.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhum dado para o período selecionado</td></tr>`;
+    return;
+  }
+
+  // Agrupa por empresa
+  const porEmpresa = {};
+  folhasFiltradas.forEach(f => {
+    const key = f.empresa;
+    if (!porEmpresa[key]) porEmpresa[key] = { bruto:0, liquido:0, funcs:0, cnpj:'' };
+    const partes = f.empresa.split(' - ');
+    porEmpresa[key].cnpj = partes[1] || '';
+
+    if (f.resumoGeral && f.resumoGeral.bruto > 0) {
+      porEmpresa[key].bruto   += f.resumoGeral.bruto;
+      porEmpresa[key].liquido += f.resumoGeral.liquido;
+    } else {
+      f.funcionarios.forEach(fn => {
+        porEmpresa[key].bruto   += fn.bruto   || 0;
+        porEmpresa[key].liquido += fn.liquido  || 0;
+      });
+    }
+    porEmpresa[key].funcs += f.funcionarios.length;
+  });
+
+  let totalB = 0, totalL = 0, totalF = 0;
+  Object.values(porEmpresa).forEach(e => { totalB += e.bruto; totalL += e.liquido; totalF += e.funcs; });
+
+  let rows = Object.entries(porEmpresa).map(([emp, d]) => {
+    const nome = emp.split(' - ')[0];
+    const pct  = totalB > 0 ? ((d.bruto/totalB)*100).toFixed(1) : '0.0';
+    return `<tr>
+      <td><strong>${nome}</strong></td>
+      <td class="td-mono td-muted" style="font-size:12px">${d.cnpj}</td>
+      <td class="td-right">${d.funcs}</td>
+      <td class="td-right td-mono">${fmt(d.bruto)}</td>
+      <td class="td-right td-mono" style="color:#27AE60;font-weight:500">${fmt(d.liquido)}</td>
+      <td class="td-right">
+        <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end">
+          <div style="width:60px;height:6px;background:var(--gray-200);border-radius:99px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:var(--teal);border-radius:99px"></div>
+          </div>
+          <span style="font-size:12px;color:var(--text-muted)">${pct}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Linha de total
+  rows += `<tr style="background:var(--teal-light);font-weight:700">
+    <td colspan="2"><strong>TOTAL GERAL</strong></td>
+    <td class="td-right">${totalF}</td>
+    <td class="td-right td-mono" style="color:var(--teal-dark)">${fmt(totalB)}</td>
+    <td class="td-right td-mono" style="color:#1B5E20">${fmt(totalL)}</td>
+    <td class="td-right">100%</td>
+  </tr>`;
+
+  tbody.innerHTML = rows;
+}
 
 // ============================================================
 // TABS MENSAL / ANUAL
@@ -3504,6 +3516,177 @@ async function enviarTodosDrive() {
     if (el) el.innerHTML = `<span class="badge badge-green"><i class="ti ti-check"></i> Enviado</span>`;
   }
   notify(`${selecionados.length} relatório(s) enviados ao Drive!`, 'success');
+}
+
+
+// ============================================================
+// EXPORTAÇÃO EXCEL — CNPJ e Departamento
+// ============================================================
+function exportarRelCNPJExcel() {
+  const filtroCNPJ = document.getElementById('filtro-cnpj').value;
+  const isAnual    = relTabs.cnpj === 'anual';
+  const periodo    = isAnual ? null : document.getElementById('filtro-periodo-cnpj').value;
+  const ano        = isAnual ? document.getElementById('filtro-ano-cnpj').value : null;
+  const label      = isAnual ? `Ano_${ano}` : periodo.replace('-','_');
+
+  const folhasFiltradas = state.folhas.filter(f => {
+    const matchCNPJ = filtroCNPJ === 'todos' || f.empresa === filtroCNPJ;
+    const matchPer  = ano ? (f.competencia && f.competencia.startsWith(ano)) : (!periodo || f.competencia === periodo);
+    return matchCNPJ && matchPer;
+  });
+
+  if (!folhasFiltradas.length) { notify('Nenhum dado para exportar.', 'info'); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  // Aba por empresa
+  folhasFiltradas.forEach(f => {
+    const nomeEmp = f.empresa.split(' - ')[0].substring(0,28);
+    const rows = [
+      [`Empresa: ${f.empresa}`],
+      [`Competência: ${formatComp(f.competencia)}`],
+      [],
+      ['Nome','Departamento','Cargo','Situação','Sal. Bruto','INSS','IRRF','FGTS','Sal. Família','Outros Desc.','Liq. Rescisão','Sal. Líquido']
+    ];
+    f.funcionarios.forEach(fn => {
+      rows.push([
+        fn.nome, fn.depto, fn.cargo||'', fn.situacao||'',
+        fn.bruto||0, fn.inss||0, fn.irrf||0, fn.fgts||0,
+        fn.salFamilia||0, fn.descontos||0, fn.liqRescisao||0, fn.liquido||0
+      ]);
+    });
+    // Linha de total
+    rows.push([]);
+    rows.push([
+      'TOTAL','','','',
+      f.funcionarios.reduce((s,x)=>s+(x.bruto||0),0),
+      f.funcionarios.reduce((s,x)=>s+(x.inss||0),0),
+      f.funcionarios.reduce((s,x)=>s+(x.irrf||0),0),
+      f.funcionarios.reduce((s,x)=>s+(x.fgts||0),0),
+      f.funcionarios.reduce((s,x)=>s+(x.salFamilia||0),0),
+      f.funcionarios.reduce((s,x)=>s+(x.descontos||0),0),
+      f.funcionarios.reduce((s,x)=>s+(x.liqRescisao||0),0),
+      f.funcionarios.reduce((s,x)=>s+(x.liquido||0),0),
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [30,30,30,15,14,12,12,12,14,14,14,14].map(w=>({wch:w}));
+    XLSX.utils.book_append_sheet(wb, ws, nomeEmp);
+  });
+
+  // Aba consolidada
+  const rowsConsolidado = [
+    ['RELATÓRIO CONSOLIDADO POR CNPJ'],
+    [`Período: ${label.replace('_','/')}`],
+    [],
+    ['Empresa','CNPJ','Colaboradores','Folha Bruta','INSS','IRRF','FGTS','Sal. Família','Outros Desc.','Liq. Rescisão','Folha Líquida']
+  ];
+  folhasFiltradas.forEach(f => {
+    const p = f.empresa.split(' - ');
+    rowsConsolidado.push([
+      p[0], p[1]||'', f.funcionarios.length,
+      f.funcionarios.reduce((s,x)=>s+(x.bruto||0),0),
+      f.funcionarios.reduce((s,x)=>s+(x.inss||0),0),
+      f.funcionarios.reduce((s,x)=>s+(x.irrf||0),0),
+      f.funcionarios.reduce((s,x)=>s+(x.fgts||0),0),
+      f.funcionarios.reduce((s,x)=>s+(x.salFamilia||0),0),
+      f.funcionarios.reduce((s,x)=>s+(x.descontos||0),0),
+      f.funcionarios.reduce((s,x)=>s+(x.liqRescisao||0),0),
+      f.funcionarios.reduce((s,x)=>s+(x.liquido||0),0),
+    ]);
+  });
+  const wsC = XLSX.utils.aoa_to_sheet(rowsConsolidado);
+  wsC['!cols'] = [30,22,14,14,12,12,12,14,14,14,14].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, wsC, 'Consolidado');
+
+  XLSX.writeFile(wb, `Equilibrym_Rel_CNPJ_${label}.xlsx`);
+  notify('Excel por CNPJ exportado!', 'success');
+}
+
+function exportarRelDeptoExcel() {
+  const isAnual   = relTabs.depto === 'anual';
+  const periodo   = isAnual ? null : document.getElementById('filtro-periodo-depto').value;
+  const ano       = isAnual ? document.getElementById('filtro-ano-depto').value : null;
+  const label     = isAnual ? `Ano_${ano}` : periodo.replace('-','_');
+  const filtroD   = document.getElementById('filtro-depto').value;
+
+  const folhasFiltradas = state.folhas.filter(f =>
+    ano ? (f.competencia && f.competencia.startsWith(ano)) : (!periodo || f.competencia === periodo)
+  );
+
+  if (!folhasFiltradas.length) { notify('Nenhum dado para exportar.', 'info'); return; }
+
+  // Agrupa por departamento
+  const porDepto = {};
+  folhasFiltradas.forEach(f => {
+    f.funcionarios.forEach(fn => {
+      if (filtroD !== 'todos' && fn.depto !== filtroD) return;
+      if (!porDepto[fn.depto]) porDepto[fn.depto] = [];
+      porDepto[fn.depto].push({...fn, empresa: f.empresa.split(' - ')[0]});
+    });
+  });
+
+  const wb = XLSX.utils.book_new();
+
+  // Aba por departamento
+  Object.entries(porDepto).forEach(([depto, funcs]) => {
+    const nomeAba = depto.substring(0,28);
+    const rows = [
+      [`Departamento: ${depto}`],
+      [`Período: ${label.replace('_','/')}`],
+      [],
+      ['Nome','Empresa','Cargo','Situação','Sal. Bruto','INSS','IRRF','FGTS','Sal. Família','Outros Desc.','Liq. Rescisão','Sal. Líquido']
+    ];
+    funcs.forEach(fn => {
+      rows.push([
+        fn.nome, fn.empresa, fn.cargo||'', fn.situacao||'',
+        fn.bruto||0, fn.inss||0, fn.irrf||0, fn.fgts||0,
+        fn.salFamilia||0, fn.descontos||0, fn.liqRescisao||0, fn.liquido||0
+      ]);
+    });
+    rows.push([]);
+    rows.push([
+      'TOTAL','','','',
+      funcs.reduce((s,x)=>s+(x.bruto||0),0),
+      funcs.reduce((s,x)=>s+(x.inss||0),0),
+      funcs.reduce((s,x)=>s+(x.irrf||0),0),
+      funcs.reduce((s,x)=>s+(x.fgts||0),0),
+      funcs.reduce((s,x)=>s+(x.salFamilia||0),0),
+      funcs.reduce((s,x)=>s+(x.descontos||0),0),
+      funcs.reduce((s,x)=>s+(x.liqRescisao||0),0),
+      funcs.reduce((s,x)=>s+(x.liquido||0),0),
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [30,25,28,12,14,12,12,12,14,14,14,14].map(w=>({wch:w}));
+    XLSX.utils.book_append_sheet(wb, ws, nomeAba);
+  });
+
+  // Aba resumo por depto
+  const rowsRes = [
+    ['RESUMO POR DEPARTAMENTO — TODOS OS CNPJs'],
+    [`Período: ${label.replace('_','/')}`],
+    [],
+    ['Departamento','Colaboradores','Empresas','Folha Bruta','INSS','IRRF','FGTS','Sal. Família','Outros Desc.','Liq. Rescisão','Folha Líquida']
+  ];
+  Object.entries(porDepto).forEach(([depto, funcs]) => {
+    const empresas = [...new Set(funcs.map(f=>f.empresa))].join(', ');
+    rowsRes.push([
+      depto, funcs.length, empresas,
+      funcs.reduce((s,x)=>s+(x.bruto||0),0),
+      funcs.reduce((s,x)=>s+(x.inss||0),0),
+      funcs.reduce((s,x)=>s+(x.irrf||0),0),
+      funcs.reduce((s,x)=>s+(x.fgts||0),0),
+      funcs.reduce((s,x)=>s+(x.salFamilia||0),0),
+      funcs.reduce((s,x)=>s+(x.descontos||0),0),
+      funcs.reduce((s,x)=>s+(x.liqRescisao||0),0),
+      funcs.reduce((s,x)=>s+(x.liquido||0),0),
+    ]);
+  });
+  const wsR = XLSX.utils.aoa_to_sheet(rowsRes);
+  wsR['!cols'] = [30,14,35,14,12,12,12,14,14,14,14].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, wsR, 'Resumo');
+
+  XLSX.writeFile(wb, `Equilibrym_Rel_Depto_${label}.xlsx`);
+  notify('Excel por Departamento exportado!', 'success');
 }
 
 // ============================================================
