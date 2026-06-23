@@ -1100,6 +1100,7 @@ table.styled thead th {
             <button class="btn btn-outline" onclick="gerarRelCNPJ()"><i class="ti ti-refresh"></i> Gerar</button>
             <button class="btn btn-primary" onclick="exportarRelCNPJPDF()"><i class="ti ti-download"></i> PDF</button>
             <button class="btn btn-outline" onclick="exportarRelCNPJExcel()" style="color:#1B5E20;border-color:#1B5E20"><i class="ti ti-file-spreadsheet"></i> Excel</button>
+            <button class="btn btn-outline" onclick="exportarModeloPlanilha()" style="color:#1565C0;border-color:#1565C0"><i class="ti ti-table"></i> Modelo RH</button>
             <button class="btn btn-success" onclick="salvarDriveRel('cnpj')"><i class="ti ti-brand-google-drive"></i> Drive</button>
           </div>
         </div>
@@ -2331,55 +2332,117 @@ async function parsePDF(arrayBuffer) {
 }
 
 function parsearExtratoDominio(texto) {
-  const linhas = texto.split('\n');
+  const linhas = texto.split('\n').map(l => l.replace(/\s+/g,' ').trim()).filter(l => l);
   const funcionarios = [];
-  const resumoGeral = { bruto:0, descontos:0, liquido:0, inss:0, irrf:0, fgts:0, salFamilia:0, liqRescisao:0 };
+  const resumoGeral = {bruto:0,descontos:0,liquido:0,inss:0,irrf:0,fgts:0,salFamilia:0,liqRescisao:0};
   let centoCusto = 'Geral';
   let currentFunc = null;
   let liqRescTotal = 0;
 
-  // Normaliza múltiplos espaços
-  const norm = s => s.replace(/\s+/g,' ').trim();
-  const pm = v => {
-    if (!v) return 0;
-    const s = String(v).replace(/\./g,'').replace(',','.');
-    return parseFloat(s) || 0;
-  };
+  const pm = v => parseFloat(String(v||0).replace(/\./g,'').replace(',','.')) || 0;
+  const nv = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+
+  // Grupos de rubricas
+  const INSS_CODS  = new Set(['998','826','989','812','821','843']);
+  const IRRF_CODS  = new Set(['999','828']);
+  const SF_CODS    = new Set(['995','224']);
+
+  function processaRubricas(linha) {
+    if (!currentFunc) return;
+    // Divide a linha buscando padrões: NUMERO TEXTO... VALOR P/D
+    // Usa regex que encontra sequências: codigo seguido de descricao e valor+tipo
+    // Processa cada rubrica individualmente
+    const re = /\b(\d{1,5})\s+([A-Z][A-Z0-9 .%()\/]+?)\s+([\d.,]+)\s+([PD*])/g;
+    let m;
+    // Guarda todas as ocorrências
+    const ocorrencias = [];
+    while ((m = re.exec(linha)) !== null) {
+      ocorrencias.push({
+        cod: m[1],
+        desc: m[2].trim(),
+        valor: pm(m[3]),
+        tipo: m[4],
+        idx: m.index
+      });
+    }
+    
+    // Para cada rubrica, pega o ÚLTIMO valor antes do P/D
+    // (pois pode ter qtd antes do valor)
+    // Estratégia: entre dois códigos consecutivos, pega o último par valor+tipo
+    for (let i = 0; i < ocorrencias.length; i++) {
+      const oc = ocorrencias[i];
+      if (oc.tipo === '*') continue;
+      
+      // Pega o segmento desta rubrica até a próxima
+      const segStart = oc.idx;
+      const segEnd = i + 1 < ocorrencias.length ? ocorrencias[i+1].idx : linha.length;
+      const seg = linha.substring(segStart, segEnd);
+      
+      // Pega TODOS os pares valor+tipo no segmento
+      const pares = [...seg.matchAll(/([\d.,]+)\s+([PD*])/g)];
+      if (!pares.length) continue;
+      
+      // O valor real é o ÚLTIMO par (o primeiro pode ser quantidade)
+      const ultimo = pares[pares.length - 1];
+      const valor = pm(ultimo[1]);
+      const tipo  = ultimo[2];
+      if (tipo === '*' || valor === 0) continue;
+      
+      const cod = oc.cod;
+      
+      if (tipo === 'D') currentFunc._descsRaw[cod] = {desc: oc.desc, valor};
+      
+      if (INSS_CODS.has(cod) && tipo === 'D')        currentFunc.inss += valor;
+      else if (IRRF_CODS.has(cod) && tipo === 'D')   currentFunc.irrf += valor;
+      else if (SF_CODS.has(cod) && tipo === 'P')     currentFunc.salFamilia += valor;
+      else if (cod === '206' && tipo === 'D')         currentFunc.vt += valor;
+      else if (cod === '937' && tipo === 'D')         currentFunc.adiantFerias += valor;
+      else if (cod === '981' && tipo === 'D')         currentFunc.adiantSalarial += valor;
+      else if (cod === '8111' && tipo === 'D')        currentFunc.planoSaude += valor;
+      else if (['8069','8792','8794'].includes(cod) && tipo === 'D') currentFunc.faltas += valor;
+      else if (cod === '51' && tipo === 'D' && valor > 0) {
+        currentFunc.liqRescisao = valor;
+        liqRescTotal += valor;
+        currentFunc.liquido = valor;
+      }
+      else if (tipo === 'D' && !['49','51','211','218'].includes(cod)) {
+        currentFunc.outros += valor;
+      }
+    }
+  }
 
   for (let i = 0; i < linhas.length; i++) {
-    const L  = norm(linhas[i]);
-    const Ln = L.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-    if (!L) continue;
+    const L  = linhas[i];
+    const Ln = nv(L);
 
-    // CENTRO DE CUSTO: "C.Custo: 1 - LONGHI SERVICOS..."
+    // CENTRO DE CUSTO
     if (Ln.startsWith('c.custo:')) {
       const m = L.match(/C\.Custo:\s*\d+\s*[-\u2013]\s*(.+)/i);
       if (m) centoCusto = m[1].trim();
       continue;
     }
 
-    // FUNCIONÁRIO: "Empr.: 107 CAIO MARCONDES VICCO Situação: Demitido CPF:..."
-    if ((Ln.startsWith('empr.:') || Ln.startsWith('empr.') || Ln.startsWith('contr:')) && Ln.includes('situa')) {
+    // FUNCIONÁRIO
+    if ((Ln.startsWith('empr') || Ln.startsWith('contr')) && Ln.includes('situa')) {
       if (currentFunc && currentFunc.bruto > 0) funcionarios.push({...currentFunc});
       const mNome = L.match(/(?:Empr\.?:?\s*|Contr:\s*)\d+\s+(.+?)\s+Situa/i);
-      const mSit  = Ln.match(/situac[^\s]*\s*:\s*(\w+)/);
+      const mSit  = Ln.match(/situa[^\s:]*\s*:\s*(\w+)/);
       currentFunc = {
         nome: mNome ? mNome[1].trim() : '',
         situacao: mSit ? mSit[1] : '',
-        depto: centoCusto,
-        cargo: '', salarioBase: 0,
-        bruto: 0, descontos: 0, liquido: 0,
-        inss: 0, irrf: 0, fgts: 0, salFamilia: 0, liqRescisao: 0,
+        depto: centoCusto, cargo: '', salarioBase: 0,
+        bruto:0, descontos:0, liquido:0,
+        inss:0, irrf:0, fgts:0, vt:0,
+        adiantFerias:0, adiantSalarial:0, planoSaude:0,
+        faltas:0, salFamilia:0, liqRescisao:0, outros:0,
+        _descsRaw: {}
       };
       continue;
     }
 
-    if (!currentFunc) {
-      capturaResumoGeral(Ln, L, resumoGeral);
-      continue;
-    }
+    if (!currentFunc) { capturaResumoGeral(Ln, L, resumoGeral); continue; }
 
-    // CARGO + SALÁRIO BASE: "Cargo: 2 AGENTE DE ATENDIMENTO C.B.O: 422310 Filial: 1 Salário: 1.504,52"
+    // CARGO + SALÁRIO BASE
     if (Ln.startsWith('cargo:')) {
       const mC = L.match(/Cargo:\s*\d+\s+(.+?)\s+C\.B\.O/i);
       if (mC && !currentFunc.cargo) currentFunc.cargo = mC[1].trim();
@@ -2388,78 +2451,35 @@ function parsearExtratoDominio(texto) {
       continue;
     }
 
-    // LINHA DE TOTAIS DO FUNCIONÁRIO:
-    // "ND: 0 Proventos: 3.701,04 Descontos: 3.701,04 136,50 0 Líquido: 0,00"
-    // O líquido REAL é o número depois de "Descontos: X" e antes de "Líquido:"
-    // Na verdade: Proventos - Descontos = Líquido real (quando Líquido: mostra 0,00 p/ rescisões)
-    if (Ln.startsWith('nd:') && Ln.includes('proventos:') && Ln.includes('descontos:')) {
+    // LINHA ND — TOTAIS DO FUNCIONÁRIO
+    if (Ln.startsWith('nd:') && Ln.includes('proventos:')) {
       const mP = Ln.match(/proventos:\s*([\d.,]+)/);
       const mD = Ln.match(/descontos:\s*([\d.,]+)/);
-      const mL = Ln.match(/l[i\u00ed]quido:\s*([\d.,]+)/);
+      const mL = Ln.match(/l[ií]quido:\s*([\d.,]+)/);
       if (mP) currentFunc.bruto     = pm(mP[1]);
       if (mD) currentFunc.descontos = pm(mD[1]);
-      // Líquido: se for 0 e for rescisão, usa o campo de rescisão; senão usa o valor
-      const liqBruto = mL ? pm(mL[1]) : 0;
-      currentFunc.liquido = liqBruto > 0 ? liqBruto : (currentFunc.bruto - currentFunc.descontos);
+      if (mL && pm(mL[1]) > 0) currentFunc.liquido = pm(mL[1]);
+      else if (currentFunc.liqRescisao === 0) {
+        currentFunc.liquido = currentFunc.bruto - currentFunc.descontos;
+      }
       continue;
     }
 
-    // FGTS DO FUNCIONÁRIO: "NF: 0 Base INSS: 1.706,31 ... Valor FGTS: 136,50 Base IRRF: 1.245,61"
+    // LINHA NF — FGTS
     if (Ln.startsWith('nf:') && Ln.includes('valor fgts:')) {
       const m = Ln.match(/valor fgts:\s*([\d.,]+)/);
       if (m) currentFunc.fgts = pm(m[1]);
       continue;
     }
 
-    // RUBRICAS — formato: "COD DESCRICAO QTD VALOR P/D [COD DESCRICAO QTD VALOR P/D]"
-    // Exemplos reais do log:
-    // "8781 SALARIO 30,00 719,04 P 998 I.N.S.S 1 7,50 53,92 D"
-    // "826 INSS SOBRE RESCIS 7,50 80,80 D"
-    // "995 SALARIO FAMILIA 1,00 49,53 P"
-    // "999 IMPOSTO D RENDA 27,50 113,94 D"
-    // Regex: pega código + valor + tipo P/D (o valor real é o ÚLTIMO número antes de P/D)
-    const reRub = /\b(\d{1,4})\s+[A-Z0-9%./\s]+?\s+([\d.,]+)\s+([PD*])\b/g;
-    let mr;
-    while ((mr = reRub.exec(L)) !== null) {
-      const cod   = mr[1];
-      const valor = pm(mr[2]);
-      const tipo  = mr[3];
-      if (tipo === '*') continue; // informativos
-
-      // INSS: 998, 826, 989, 812, 821, 843
-      if (['998','826','989','812','821','843'].includes(cod) && tipo === 'D') {
-        currentFunc.inss += valor;
-      }
-      // Salário Família: 995, 224
-      if (['995','224'].includes(cod) && tipo === 'P') {
-        currentFunc.salFamilia += valor;
-      }
-      // IRRF: 999, 828
-      if (['999','828'].includes(cod) && tipo === 'D') {
-        currentFunc.irrf += valor;
-      }
-      // Líquido Rescisão: 51
-      if (cod === '51' && tipo === 'D' && valor > 0) {
-        currentFunc.liqRescisao = valor;
-        liqRescTotal += valor;
-        // Para rescisões, o líquido = liqRescisao
-        currentFunc.liquido = valor;
-      }
-    }
-
+    // RUBRICAS
+    processaRubricas(L);
     capturaResumoGeral(Ln, L, resumoGeral);
   }
 
   if (currentFunc && currentFunc.bruto > 0) funcionarios.push({...currentFunc});
+  resumoGeral.liqRescisao = liqRescTotal;
 
-  // Usa valores do resumo geral do PDF quando disponíveis (mais precisos)
-  // FGTS: usa só o do resumo (evita dupla contagem)
-  // Líquido geral já está correto no resumo
-  if (resumoGeral.liquido > 0) {
-    // OK — veio do "Líquido Geral:"
-  }
-
-  // Remove log de debug
   console.log('[PDF Parser] Funcionarios:', funcionarios.length);
   console.log('[PDF Parser] Resumo Geral:', JSON.stringify(resumoGeral));
   if (funcionarios[0]) console.log('[PDF Parser] 1o func:', JSON.stringify(funcionarios[0]));
@@ -2467,11 +2487,12 @@ function parsearExtratoDominio(texto) {
   window._pdfResumoGeral = (resumoGeral.inss > 0 || resumoGeral.liquido > 0) ? resumoGeral : null;
   window._pdfColMap = {};
 
-  const rows = [['Nome','Depto','Cargo','Situacao','Sal.Base','Proventos','Descontos','Liquido','INSS','IRRF','FGTS','Sal.Fam','Liq.Resc']];
+  const rows = [['Nome','Depto','Cargo','Situacao','Sal.Base','Proventos','INSS','IRRF','FGTS','VT 6%','Adiant.Ferias','Adiant.Salarial','Plano Saude','Faltas','Sal.Familia','Outros','Liquido']];
   funcionarios.forEach(f => rows.push([
-    f.nome, f.depto, f.cargo, f.situacao,
-    f.salarioBase, f.bruto, f.descontos, f.liquido,
-    f.inss, f.irrf, f.fgts, f.salFamilia, f.liqRescisao
+    f.nome, f.depto, f.cargo, f.situacao, f.salarioBase,
+    f.bruto, f.inss, f.irrf, f.fgts, f.vt,
+    f.adiantFerias, f.adiantSalarial, f.planoSaude, f.faltas,
+    f.salFamilia, f.outros, f.liquido
   ]));
 
   window._pdfFuncionarios = funcionarios;
@@ -2513,46 +2534,44 @@ function capturaResumoGeral(linhaN, linhaOrig, resumoGeral) {
     if (m) resumoGeral.irrf = parseMoeda(m[1]);
   }
 
-  // Valor do FGTS total (pega apenas o consolidado final, não por centro de custo)
-  // "Valor do FGTS: 10.947,12" — aparece várias vezes, usa a maior
-  m = linhaN.match(/^valor do fgts:\s*([\d.,]+)/);
+  // Valor do FGTS — pega o maior valor encontrado (consolidado geral)
+  m = linhaN.match(/valor do fgts:\s*([\d.,]+)/);
   if (m) { const v = parseMoeda(m[1]); if (v > resumoGeral.fgts) resumoGeral.fgts = v; }
 
-  // Valor FGTS Rescisório — soma ao total
-  m = linhaN.match(/^valor fgts rescisorio:\s*([\d.,]+)/);
-  if (m && parseMoeda(m[1]) > 0) resumoGeral.fgts += parseMoeda(m[1]);
+  // Valor FGTS Rescisório
+  m = linhaN.match(/valor fgts rescisorio:\s*([\d.,]+)/);
+  if (m) { const v = parseMoeda(m[1]); if (v > 0) resumoGeral.fgts += v; }
 
-  // Salário Família  "(-) Salario Familia: 576,34"
-  m = linhaN.match(/salari[oa]\s+famili[a]:\s*([\d.,]+)/);
-  if (m) resumoGeral.salFamilia = parseMoeda(m[1]);
+  // Salário Família — "(-)Salario Familia: 576,34" ou "(-) Salario Familia: 576,34"
+  m = linhaN.match(/salari[oa]\s*famili[a]:\s*([\d.,]+)/);
+  if (!m) m = linhaN.match(/\(-\)\s*salari[oa]\s*famili[a]:\s*([\d.,]+)/);
+  if (m) { const v = parseMoeda(m[1]); if (v > 0) resumoGeral.salFamilia = v; }
 }
 
 
 function rowsParaFuncionarios(rows) {
-  // Se temos dados parseados do Domínio, usa diretamente
   if (window._pdfFuncionarios && window._pdfFuncionarios.length > 0) {
     return window._pdfFuncionarios;
   }
-  // Fallback para planilhas genéricas
   if (rows.length < 2) return [];
-  const map = window._pdfColMap || {};
   const funcionarios = [];
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
     if (!r || r.length < 2) continue;
-    const nome    = r[0] || '';
-    const depto   = r[1] || 'Não informado';
-    const cargo   = r[2] || 'Não informado';
-    const bruto   = parseMoeda(r[5]);
-    const desc    = parseMoeda(r[6]);
-    const inss    = parseMoeda(r[8]);
-    const irrf    = parseMoeda(r[9]);
-    const fgts    = parseMoeda(r[10]);
-    const liquido = parseMoeda(r[7]);
-    const salFam  = parseMoeda(r[11]);
-    const liqResc = parseMoeda(r[12]);
+    const nome = r[0] || '';
+    const bruto = parseMoeda(r[5]);
     if (!nome || bruto === 0) continue;
-    funcionarios.push({ nome, depto, cargo, bruto, descontos: desc, liquido, inss, irrf, fgts, salFamilia: salFam, liqRescisao: liqResc });
+    funcionarios.push({
+      nome, depto: r[1]||'', cargo: r[2]||'', situacao: r[3]||'',
+      salarioBase: parseMoeda(r[4]),
+      bruto, inss: parseMoeda(r[6]), irrf: parseMoeda(r[7]),
+      fgts: parseMoeda(r[8]), vt: parseMoeda(r[9]),
+      adiantFerias: parseMoeda(r[10]), adiantSalarial: parseMoeda(r[11]),
+      planoSaude: parseMoeda(r[12]), faltas: parseMoeda(r[13]),
+      salFamilia: parseMoeda(r[14]), outros: parseMoeda(r[15]),
+      liquido: parseMoeda(r[16]),
+      descontos: 0, liqRescisao: 0, _descsRaw: {}
+    });
   }
   return funcionarios;
 }
@@ -2672,8 +2691,29 @@ function confirmarImportacaoFolha() {
   window._pdfResumoGeral = null;
   window._pdfFuncionarios = null;
 
+  // DIAGNÓSTICO — mostra estrutura do 1o funcionário antes de salvar
+  if (funcionarios.length > 0) {
+    const fn0 = funcionarios[0];
+    console.log('[IMPORT] Total funcionários:', funcionarios.length);
+    console.log('[IMPORT] 1o funcionário completo:', JSON.stringify(fn0));
+    console.log('[IMPORT] Campos:', Object.keys(fn0).join(', '));
+  }
+
   state.folhas.push({ empresa, competencia: comp, tipo, funcionarios, resumoGeral });
   salvarDados();
+
+  // Confirma que foi salvo corretamente
+  const salvo = state.folhas[state.folhas.length - 1];
+  if (salvo && salvo.funcionarios.length > 0) {
+    const fn1 = salvo.funcionarios[0];
+    console.log('[SALVO] 1o funcionário no state:', JSON.stringify({
+      nome: fn1.nome, bruto: fn1.bruto, inss: fn1.inss, 
+      irrf: fn1.irrf, fgts: fn1.fgts, vt: fn1.vt,
+      adiantFerias: fn1.adiantFerias, adiantSalarial: fn1.adiantSalarial,
+      planoSaude: fn1.planoSaude, faltas: fn1.faltas,
+      salFamilia: fn1.salFamilia, outros: fn1.outros, liquido: fn1.liquido
+    }));
+  }
   renderListaFolhas();
   limparUploadFolha();
   popularDeptos();
@@ -3536,7 +3576,14 @@ function exportarRelCNPJExcel() {
     return matchCNPJ && matchPer;
   });
 
-  if (!folhasFiltradas.length) { notify('Nenhum dado para exportar.', 'info'); return; }
+  if (!folhasFiltradas.length) { notify('Nenhum dado para exportar. Verifique o filtro de período.', 'info'); return; }
+
+  // LOG para diagnóstico
+  console.log('[Excel] Folhas:', folhasFiltradas.length, 'Período:', periodo||ano);
+  if (folhasFiltradas[0]) {
+    const fn0 = folhasFiltradas[0].funcionarios[0];
+    if (fn0) console.log('[Excel] 1o func:', JSON.stringify({nome:fn0.nome,bruto:fn0.bruto,inss:fn0.inss,irrf:fn0.irrf,fgts:fn0.fgts,vt:fn0.vt,outros:fn0.outros,descontos:fn0.descontos,liquido:fn0.liquido}));
+  }
 
   const wb = XLSX.utils.book_new();
 
@@ -3547,30 +3594,43 @@ function exportarRelCNPJExcel() {
       [`Empresa: ${f.empresa}`],
       [`Competência: ${formatComp(f.competencia)}`],
       [],
-      ['Nome','Departamento','Cargo','Situação','Sal. Bruto','INSS','IRRF','FGTS','Sal. Família','Outros Desc.','Liq. Rescisão','Sal. Líquido']
+      ['Nome','Departamento','Cargo','Situação','Sal. Bruto','INSS','IRRF','FGTS','VT 6%','Adiant. Férias','Adiant. Salarial','Plano Saúde','Faltas','Sal. Família','Outros Desc.','Liq. Rescisão','Sal. Líquido']
     ];
     f.funcionarios.forEach(fn => {
+      // Calcula outros descontos = total descontos - itens discriminados
+      const descDisc = (fn.inss||0)+(fn.irrf||0)+(fn.vt||0)+(fn.adiantFerias||0)+(fn.adiantSalarial||0)+(fn.planoSaude||0)+(fn.faltas||0);
+      const outrosCalc = fn.outros !== undefined ? (fn.outros||0) : Math.max(0,(fn.descontos||0)-descDisc-(fn.inss||0)-(fn.irrf||0));
       rows.push([
-        fn.nome, fn.depto, fn.cargo||'', fn.situacao||'',
-        fn.bruto||0, fn.inss||0, fn.irrf||0, fn.fgts||0,
-        fn.salFamilia||0, fn.descontos||0, fn.liqRescisao||0, fn.liquido||0
+        fn.nome||'', fn.depto||'', fn.cargo||'', fn.situacao||'',
+        fn.bruto||0,
+        fn.inss||0,
+        fn.irrf||0,
+        fn.fgts||0,
+        fn.vt||0,
+        fn.adiantFerias||0,
+        fn.adiantSalarial||0,
+        fn.planoSaude||0,
+        fn.faltas||0,
+        fn.salFamilia||0,
+        outrosCalc,
+        fn.liqRescisao||0,
+        fn.liquido||0
       ]);
     });
-    // Linha de total
     rows.push([]);
-    rows.push([
-      'TOTAL','','','',
-      f.funcionarios.reduce((s,x)=>s+(x.bruto||0),0),
-      f.funcionarios.reduce((s,x)=>s+(x.inss||0),0),
-      f.funcionarios.reduce((s,x)=>s+(x.irrf||0),0),
-      f.funcionarios.reduce((s,x)=>s+(x.fgts||0),0),
-      f.funcionarios.reduce((s,x)=>s+(x.salFamilia||0),0),
-      f.funcionarios.reduce((s,x)=>s+(x.descontos||0),0),
-      f.funcionarios.reduce((s,x)=>s+(x.liqRescisao||0),0),
-      f.funcionarios.reduce((s,x)=>s+(x.liquido||0),0),
+    const T = (campo) => f.funcionarios.reduce((s,x)=>s+(x[campo]||0),0);
+    const outrosTotal = f.funcionarios.reduce((s,fn)=>{
+      const dd=(fn.inss||0)+(fn.irrf||0)+(fn.vt||0)+(fn.adiantFerias||0)+(fn.adiantSalarial||0)+(fn.planoSaude||0)+(fn.faltas||0);
+      return s+(fn.outros!==undefined?(fn.outros||0):Math.max(0,(fn.descontos||0)-dd));
+    },0);
+    rows.push(['TOTAL','','','',
+      T('bruto'), T('inss'), T('irrf'), T('fgts'),
+      T('vt'), T('adiantFerias'), T('adiantSalarial'),
+      T('planoSaude'), T('faltas'), T('salFamilia'),
+      outrosTotal, T('liqRescisao'), T('liquido')
     ]);
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [30,30,30,15,14,12,12,12,14,14,14,14].map(w=>({wch:w}));
+    ws['!cols'] = [30,25,28,12,13,11,11,11,10,13,14,12,10,12,10,13,13].map(w=>({wch:w}));
     XLSX.utils.book_append_sheet(wb, ws, nomeEmp);
   });
 
@@ -3579,7 +3639,7 @@ function exportarRelCNPJExcel() {
     ['RELATÓRIO CONSOLIDADO POR CNPJ'],
     [`Período: ${label.replace('_','/')}`],
     [],
-    ['Empresa','CNPJ','Colaboradores','Folha Bruta','INSS','IRRF','FGTS','Sal. Família','Outros Desc.','Liq. Rescisão','Folha Líquida']
+    ['Empresa','CNPJ','Colaboradores','Folha Bruta','INSS','IRRF','FGTS','VT 6%','Adiant. Férias','Adiant. Salarial','Plano Saúde','Faltas','Sal. Família','Outros','Liq. Rescisão','Folha Líquida']
   ];
   folhasFiltradas.forEach(f => {
     const p = f.empresa.split(' - ');
@@ -3635,29 +3695,33 @@ function exportarRelDeptoExcel() {
       [`Departamento: ${depto}`],
       [`Período: ${label.replace('_','/')}`],
       [],
-      ['Nome','Empresa','Cargo','Situação','Sal. Bruto','INSS','IRRF','FGTS','Sal. Família','Outros Desc.','Liq. Rescisão','Sal. Líquido']
+      ['Nome','Empresa','Cargo','Situação','Sal. Bruto','INSS','IRRF','FGTS','VT 6%','Adiant. Férias','Adiant. Salarial','Plano Saúde','Faltas','Sal. Família','Outros','Liq. Rescisão','Sal. Líquido']
     ];
     funcs.forEach(fn => {
+      const descDisc2 = (fn.inss||0)+(fn.irrf||0)+(fn.vt||0)+(fn.adiantFerias||0)+(fn.adiantSalarial||0)+(fn.planoSaude||0)+(fn.faltas||0);
+      const outrosCalc2 = fn.outros !== undefined ? (fn.outros||0) : Math.max(0,(fn.descontos||0)-descDisc2);
       rows.push([
-        fn.nome, fn.empresa, fn.cargo||'', fn.situacao||'',
+        fn.nome||'', fn.empresa||'', fn.cargo||'', fn.situacao||'',
         fn.bruto||0, fn.inss||0, fn.irrf||0, fn.fgts||0,
-        fn.salFamilia||0, fn.descontos||0, fn.liqRescisao||0, fn.liquido||0
+        fn.vt||0, fn.adiantFerias||0, fn.adiantSalarial||0,
+        fn.planoSaude||0, fn.faltas||0, fn.salFamilia||0,
+        outrosCalc2, fn.liqRescisao||0, fn.liquido||0
       ]);
     });
     rows.push([]);
-    rows.push([
-      'TOTAL','','','',
-      funcs.reduce((s,x)=>s+(x.bruto||0),0),
-      funcs.reduce((s,x)=>s+(x.inss||0),0),
-      funcs.reduce((s,x)=>s+(x.irrf||0),0),
-      funcs.reduce((s,x)=>s+(x.fgts||0),0),
-      funcs.reduce((s,x)=>s+(x.salFamilia||0),0),
-      funcs.reduce((s,x)=>s+(x.descontos||0),0),
-      funcs.reduce((s,x)=>s+(x.liqRescisao||0),0),
-      funcs.reduce((s,x)=>s+(x.liquido||0),0),
+    const TD = (campo) => funcs.reduce((s,x)=>s+(x[campo]||0),0);
+    const outrosTotalD = funcs.reduce((s,fn)=>{
+      const dd2=(fn.inss||0)+(fn.irrf||0)+(fn.vt||0)+(fn.adiantFerias||0)+(fn.adiantSalarial||0)+(fn.planoSaude||0)+(fn.faltas||0);
+      return s+(fn.outros!==undefined?(fn.outros||0):Math.max(0,(fn.descontos||0)-dd2));
+    },0);
+    rows.push(['TOTAL','','','',
+      TD('bruto'), TD('inss'), TD('irrf'), TD('fgts'),
+      TD('vt'), TD('adiantFerias'), TD('adiantSalarial'),
+      TD('planoSaude'), TD('faltas'), TD('salFamilia'),
+      outrosTotalD, TD('liqRescisao'), TD('liquido')
     ]);
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [30,25,28,12,14,12,12,12,14,14,14,14].map(w=>({wch:w}));
+    ws['!cols'] = [30,25,28,12,13,11,11,11,10,13,14,12,10,12,10,13,13].map(w=>({wch:w}));
     XLSX.utils.book_append_sheet(wb, ws, nomeAba);
   });
 
@@ -3666,7 +3730,7 @@ function exportarRelDeptoExcel() {
     ['RESUMO POR DEPARTAMENTO — TODOS OS CNPJs'],
     [`Período: ${label.replace('_','/')}`],
     [],
-    ['Departamento','Colaboradores','Empresas','Folha Bruta','INSS','IRRF','FGTS','Sal. Família','Outros Desc.','Liq. Rescisão','Folha Líquida']
+    ['Departamento','Colaboradores','Empresas','Folha Bruta','INSS','IRRF','FGTS','VT 6%','Adiant. Férias','Adiant. Salarial','Plano Saúde','Faltas','Sal. Família','Outros','Liq. Rescisão','Folha Líquida']
   ];
   Object.entries(porDepto).forEach(([depto, funcs]) => {
     const empresas = [...new Set(funcs.map(f=>f.empresa))].join(', ');
@@ -3688,6 +3752,179 @@ function exportarRelDeptoExcel() {
 
   XLSX.writeFile(wb, `Equilibrym_Rel_Depto_${label}.xlsx`);
   notify('Excel por Departamento exportado!', 'success');
+}
+
+
+// ============================================================
+// EXPORTAÇÃO EXCEL — MODELO PLANILHA (com provisões calculadas)
+// ============================================================
+function exportarModeloPlanilha() {
+  const isAnual = relTabs.cnpj === 'anual';
+  const periodo = isAnual ? null : document.getElementById('filtro-periodo-cnpj').value;
+  const ano     = isAnual ? document.getElementById('filtro-ano-cnpj').value : null;
+  const label   = isAnual ? `Ano_${ano}` : (periodo||'').replace('-','_');
+
+  const folhasFiltradas = state.folhas.filter(f => {
+    const matchPer = ano
+      ? (f.competencia && f.competencia.startsWith(ano))
+      : (!periodo || f.competencia === periodo);
+    return matchPer;
+  });
+
+  if (!folhasFiltradas.length) { notify('Nenhum dado para exportar. Importe folhas primeiro.', 'info'); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  // Função de cálculo das provisões (igual ao modelo)
+  const calcProv = (salBase, proventos, fgts, situacao) => {
+    const isDemitido = (situacao||'').toLowerCase().includes('demit');
+    if (isDemitido) {
+      return { prov13: 0, provFerias: 0, provTercFerias: 0, fgtsProv: 0, total: proventos + fgts };
+    }
+    const prov13        = proventos / 12;
+    const provFerias    = proventos / 12;
+    const provTercFerias = provFerias / 3;
+    const fgtsProv      = (proventos + prov13 + provFerias + provTercFerias) * 0.08;
+    const total = proventos + fgts + prov13 + provFerias + provTercFerias + fgtsProv;
+    return { prov13, provFerias, provTercFerias, fgtsProv, total };
+  };
+
+  // ABA POR EMPRESA
+  folhasFiltradas.forEach(f => {
+    const nomeEmp = f.empresa.split(' - ')[0].substring(0, 28);
+    const cnpj    = f.empresa.split(' - ')[1] || '';
+
+    // Cabeçalho estilo modelo
+    const rows = [
+      [`EMPRESA: ${f.empresa.split(' - ')[0]}  |  CNPJ: ${cnpj}  |  COMPETÊNCIA: ${formatComp(f.competencia)}`],
+      [],
+      [
+        'UNIDADE','CARGO','FUNCIONÁRIO','SITUAÇÃO','VÍNCULO',
+        'SALÁRIO CONTRATUAL','PROVENTOS','ENCARGOS PATRONAIS','CUSTO BRUTO',
+        'PROV. 13º','PROV. FÉRIAS','PROV. 1/3 FÉRIAS','FGTS S/ PROV.',
+        'CUSTO PROVISIONADO TOTAL','% ENCARGOS S/ PROVENTOS','STATUS'
+      ]
+    ];
+
+    f.funcionarios.forEach(fn => {
+      const encargos = (fn.inss||0) + (fn.irrf||0); // encargos patronais = FGTS
+      const fgtsVal  = fn.fgts || 0;
+      const custoBruto = (fn.bruto||0) + fgtsVal;
+      const p = calcProv(fn.salarioBase||0, fn.bruto||0, fgtsVal, fn.situacao||'');
+      const pctEnc = fn.bruto > 0 ? fgtsVal / fn.bruto : 0;
+
+      rows.push([
+        fn.depto   || '',
+        fn.cargo   || '',
+        fn.nome    || '',
+        fn.situacao|| '',
+        fn.vinculo || 'Celetista',
+        fn.salarioBase || fn.bruto || 0,
+        fn.bruto   || 0,
+        fgtsVal,
+        custoBruto,
+        p.prov13,
+        p.provFerias,
+        p.provTercFerias,
+        p.fgtsProv,
+        p.total,
+        pctEnc,
+        'OK'
+      ]);
+    });
+
+    // Linha de TOTAL
+    rows.push([]);
+    const tot = (campo) => f.funcionarios.reduce((s,x) => s+(x[campo]||0), 0);
+    const totalBruto  = tot('bruto');
+    const totalFGTS   = tot('fgts');
+    const totalCusto  = totalBruto + totalFGTS;
+
+    // Provisões totais
+    let totP13=0, totPF=0, totPTF=0, totFProv=0, totTotal=0;
+    f.funcionarios.forEach(fn => {
+      const p = calcProv(fn.salarioBase||0, fn.bruto||0, fn.fgts||0, fn.situacao||'');
+      totP13   += p.prov13;
+      totPF    += p.provFerias;
+      totPTF   += p.provTercFerias;
+      totFProv += p.fgtsProv;
+      totTotal += p.total;
+    });
+
+    rows.push([
+      'TOTAL','','','','',
+      tot('salarioBase')||totalBruto, totalBruto, totalFGTS, totalCusto,
+      totP13, totPF, totPTF, totFProv, totTotal,
+      totalBruto > 0 ? totalFGTS/totalBruto : 0, ''
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // Larguras das colunas
+    ws['!cols'] = [18,30,30,14,14,16,14,16,14,12,12,14,12,18,18,8].map(w=>({wch:w}));
+
+    // Mescla do cabeçalho
+    ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:15} }];
+
+    // Formata % como percentual
+    const range = XLSX.utils.decode_range(ws['!ref']||'A1');
+    for (let R = 3; R <= range.e.r; R++) {
+      const cellRef = XLSX.utils.encode_cell({r:R, c:14});
+      if (ws[cellRef] && typeof ws[cellRef].v === 'number') {
+        ws[cellRef].z = '0.00%';
+      }
+      // Formata valores monetários
+      [5,6,7,8,9,10,11,12,13].forEach(C => {
+        const ref = XLSX.utils.encode_cell({r:R, c:C});
+        if (ws[ref] && typeof ws[ref].v === 'number') {
+          ws[ref].z = '"R$ "#,##0.00';
+        }
+      });
+    }
+
+    XLSX.utils.book_append_sheet(wb, ws, nomeEmp);
+  });
+
+  // ABA CONSOLIDADA (todas as empresas)
+  const rowsAll = [
+    ['RELATÓRIO CONSOLIDADO — TODAS AS EMPRESAS'],
+    [`Período: ${label.replace('_','/')}`],
+    [],
+    [
+      'EMPRESA','UNIDADE','CARGO','FUNCIONÁRIO','SITUAÇÃO','VÍNCULO',
+      'SAL. CONTRATUAL','PROVENTOS','ENCARGOS PAT.','CUSTO BRUTO',
+      'PROV. 13º','PROV. FÉRIAS','PROV. 1/3 FÉRIAS','FGTS S/ PROV.',
+      'CUSTO PROV. TOTAL','% ENC. S/ PROV.','STATUS'
+    ]
+  ];
+
+  folhasFiltradas.forEach(f => {
+    const nomeEmp = f.empresa.split(' - ')[0];
+    f.funcionarios.forEach(fn => {
+      const fgtsVal  = fn.fgts || 0;
+      const custoBruto = (fn.bruto||0) + fgtsVal;
+      const p = calcProv(fn.salarioBase||0, fn.bruto||0, fgtsVal, fn.situacao||'');
+      const pctEnc = fn.bruto > 0 ? fgtsVal / fn.bruto : 0;
+      rowsAll.push([
+        nomeEmp,
+        fn.depto||'', fn.cargo||'', fn.nome||'', fn.situacao||'', fn.vinculo||'Celetista',
+        fn.salarioBase||fn.bruto||0, fn.bruto||0, fgtsVal, custoBruto,
+        p.prov13, p.provFerias, p.provTercFerias, p.fgtsProv, p.total,
+        pctEnc, 'OK'
+      ]);
+    });
+  });
+
+  const wsAll = XLSX.utils.aoa_to_sheet(rowsAll);
+  wsAll['!cols'] = [20,18,30,30,14,14,16,14,16,14,12,12,14,12,18,18,8].map(w=>({wch:w}));
+  wsAll['!merges'] = [
+    { s:{r:0,c:0}, e:{r:0,c:16} },
+    { s:{r:1,c:0}, e:{r:1,c:16} }
+  ];
+  XLSX.utils.book_append_sheet(wb, wsAll, 'Consolidado');
+
+  XLSX.writeFile(wb, `Equilibrym_Folha_Modelo_${label}.xlsx`);
+  notify('Planilha no modelo exportada com sucesso!', 'success');
 }
 
 // ============================================================
