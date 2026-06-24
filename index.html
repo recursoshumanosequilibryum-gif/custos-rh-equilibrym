@@ -1,0 +1,3708 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Equilibrym — Sistema de Folha de Pagamento</title>
+<!-- xlsx-js-style: fork do SheetJS com suporte completo a estilos de célula -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --teal:    #3d9e96;
+    --teal-dk: #2c7a72;
+    --teal-lt: #e8f5f4;
+    --slate:   #4a5a72;
+    --slate-lt:#f0f2f5;
+    --white:   #ffffff;
+    --text:    #2d3748;
+    --muted:   #718096;
+    --border:  #d1dde6;
+    --danger:  #e53e3e;
+    --success: #38a169;
+    --warn:    #d97706;
+    --shadow:  0 2px 8px rgba(61,158,150,.12);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--slate-lt); color: var(--text); min-height: 100vh; }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--white);
+    border-bottom: 2px solid var(--teal);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 28px;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: var(--shadow);
+  }
+  header img { height: 52px; }
+  header h1 { font-size: 1rem; color: var(--slate); font-weight: 500; margin-left: 16px; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .header-right { display: flex; align-items: center; gap: 10px; font-size: .82rem; color: var(--muted); }
+  .badge-empresa {
+    background: var(--teal-lt); color: var(--teal-dk); border: 1px solid var(--teal);
+    border-radius: 20px; padding: 3px 12px; font-weight: 600; font-size: .8rem;
+  }
+
+  /* ── NAV ── */
+  nav {
+    background: var(--slate);
+    display: flex; gap: 2px;
+    padding: 0 28px;
+    overflow-x: auto;
+  }
+  nav button {
+    background: none; border: none; cursor: pointer;
+    color: rgba(255,255,255,.7); font-size: .88rem; font-weight: 500;
+    padding: 12px 18px; white-space: nowrap;
+    border-bottom: 3px solid transparent;
+    transition: all .2s;
+  }
+  nav button:hover { color: #fff; }
+  nav button.active { color: #fff; border-bottom-color: var(--teal); }
+
+  /* ── MAIN ── */
+  main { padding: 28px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--white); border-radius: 10px;
+    box-shadow: var(--shadow); margin-bottom: 24px;
+  }
+  .card-header {
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+  }
+  .card-header h2 { font-size: 1rem; color: var(--teal-dk); font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .card-body { padding: 20px 24px; }
+
+  /* ── GRID ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+
+  /* ── FORM ── */
+  label { font-size: .82rem; font-weight: 600; color: var(--slate); display: block; margin-bottom: 4px; }
+  input, select, textarea {
+    width: 100%; padding: 9px 12px; border: 1.5px solid var(--border);
+    border-radius: 6px; font-size: .88rem; color: var(--text);
+    background: var(--white); transition: border-color .2s;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--teal); }
+  .form-group { margin-bottom: 14px; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border-radius: 7px; border: none;
+    font-size: .86rem; font-weight: 600; cursor: pointer; transition: all .2s;
+    text-decoration: none;
+  }
+  .btn-primary { background: var(--teal); color: #fff; }
+  .btn-primary:hover { background: var(--teal-dk); }
+  .btn-secondary { background: var(--slate-lt); color: var(--slate); border: 1.5px solid var(--border); }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-success:hover { background: #2f855a; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { background: #c53030; }
+  .btn-sm { padding: 5px 12px; font-size: .8rem; }
+  .btn-icon { padding: 7px 10px; }
+
+  /* ── UPLOAD ZONE ── */
+  .upload-zone {
+    border: 2.5px dashed var(--teal);
+    border-radius: 12px; background: var(--teal-lt);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 40px 20px; cursor: pointer; transition: all .2s; text-align: center;
+  }
+  .upload-zone:hover { background: #d0eeec; }
+  .upload-zone.drag-over { background: #b8e4e1; border-color: var(--teal-dk); }
+  .upload-zone .upload-icon { font-size: 2.5rem; margin-bottom: 10px; }
+  .upload-zone p { font-size: .9rem; color: var(--teal-dk); font-weight: 500; }
+  .upload-zone small { color: var(--muted); font-size: .8rem; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  thead th {
+    background: var(--slate); color: #fff;
+    padding: 10px 12px; text-align: left; white-space: nowrap;
+    font-weight: 600; font-size: .78rem; letter-spacing: .3px;
+    position: sticky; top: 0;
+  }
+  tbody tr:nth-child(even) { background: #f9fbfc; }
+  tbody tr:hover { background: var(--teal-lt); }
+  tbody td { padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .td-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .td-actions { display: flex; gap: 4px; }
+
+  /* ── STATUS BADGES ── */
+  .status {
+    display: inline-block; padding: 2px 10px; border-radius: 20px;
+    font-size: .75rem; font-weight: 700; letter-spacing: .3px;
+  }
+  .status-ok { background: #c6f6d5; color: #276749; }
+  .status-dem { background: #fed7d7; color: #9b2c2c; }
+  .status-dir { background: #e9d8fd; color: #553c9a; }
+
+  /* ── STAT CARDS ── */
+  .stat-card {
+    background: var(--white); border-radius: 10px;
+    padding: 18px 20px; box-shadow: var(--shadow);
+    border-left: 4px solid var(--teal);
+  }
+  .stat-card .stat-label { font-size: .78rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+  .stat-card .stat-value { font-size: 1.6rem; font-weight: 700; color: var(--teal-dk); margin-top: 4px; }
+  .stat-card .stat-sub { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+
+  /* ── TABS ── */
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid var(--border); }
+  .tab-btn {
+    background: none; border: none; cursor: pointer;
+    padding: 10px 18px; font-size: .86rem; font-weight: 600;
+    color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -2px;
+    transition: all .2s;
+  }
+  .tab-btn.active { color: var(--teal); border-bottom-color: var(--teal); }
+
+  /* ── PAGE SECTIONS ── */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ── ALERTS ── */
+  .alert {
+    padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px; font-size: .87rem;
+  }
+  .alert-info { background: #bee3f8; color: #2a6496; }
+  .alert-success { background: #c6f6d5; color: #276749; }
+  .alert-warn { background: #fefcbf; color: #744210; }
+  .alert-err { background: #fed7d7; color: #9b2c2c; }
+
+  /* ── PROGRESS ── */
+  .progress-bar { background: var(--border); border-radius: 10px; height: 8px; overflow: hidden; }
+  .progress-fill { background: var(--teal); height: 100%; border-radius: 10px; transition: width .4s; }
+
+  /* ── LOG ── */
+  .log-box {
+    background: #1a202c; color: #68d391; border-radius: 8px;
+    padding: 14px 18px; font-family: monospace; font-size: .78rem;
+    max-height: 220px; overflow-y: auto; line-height: 1.7;
+  }
+  .log-box .log-err { color: #fc8181; }
+  .log-box .log-warn { color: #f6e05e; }
+
+  /* ── FILTERS ── */
+  .filters-bar {
+    display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 18px;
+  }
+  .filters-bar .form-group { margin-bottom: 0; min-width: 150px; }
+
+  /* ── DEPT COLOR CHIPS ── */
+  .dept-chip {
+    display: inline-block; padding: 2px 10px; border-radius: 12px;
+    font-size: .75rem; font-weight: 600;
+  }
+  .chip-0 { background: #e2e8f0; color: #4a5568; }
+  .chip-1 { background: #c6f6d5; color: #276749; }
+  .chip-2 { background: #bee3f8; color: #2a6496; }
+  .chip-3 { background: #e9d8fd; color: #553c9a; }
+  .chip-4 { background: #fefcbf; color: #744210; }
+  .chip-5 { background: #fed7d7; color: #9b2c2c; }
+  .chip-6 { background: #fbd38d; color: #744210; }
+
+  /* modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
+    z-index: 1000; align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--white); border-radius: 12px; padding: 28px;
+    max-width: 520px; width: 95%; box-shadow: 0 20px 60px rgba(0,0,0,.25);
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h3 { font-size: 1.05rem; color: var(--teal-dk); margin-bottom: 18px; font-weight: 700; }
+  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    main { padding: 16px; }
+    nav { padding: 0 12px; }
+    header { padding: 10px 16px; }
+  }
+
+  /* TOAST */
+  #toast {
+    position: fixed; bottom: 28px; right: 28px; z-index: 2000;
+    background: var(--slate); color: #fff; padding: 12px 22px;
+    border-radius: 8px; font-size: .88rem; box-shadow: 0 4px 20px rgba(0,0,0,.3);
+    transform: translateY(80px); opacity: 0; transition: all .3s;
+    max-width: 340px;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.toast-ok { border-left: 4px solid var(--success); }
+  #toast.toast-err { border-left: 4px solid var(--danger); }
+  #toast.toast-warn { border-left: 4px solid var(--warn); }
+
+  /* icon emoji sizing */
+  .icon { font-style: normal; }
+
+  .sep { border-top: 1px solid var(--border); margin: 20px 0; }
+
+  .text-right { text-align: right; }
+  .text-muted { color: var(--muted); }
+  .text-bold { font-weight: 700; }
+  .text-teal { color: var(--teal-dk); }
+  .mt-4 { margin-top: 16px; }
+  .mb-4 { margin-bottom: 16px; }
+  .gap-8 { display: flex; gap: 8px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-left">
+    <img src="public/logo.png" alt="Equilibrym" onerror="this.style.display='none'">
+    <h1>Sistema de Folha de Pagamento</h1>
+  </div>
+  <div class="header-right">
+    <span id="header-empresa-badge" class="badge-empresa" style="display:none"></span>
+    <span id="clock"></span>
+  </div>
+</header>
+
+<!-- NAV -->
+<nav>
+  <button class="active" onclick="showPage('dashboard')">🏠 Dashboard</button>
+  <button onclick="showPage('empresas')">🏢 Empresas</button>
+  <button onclick="showPage('departamentos')">🗂 Departamentos</button>
+  <button onclick="showPage('funcionarios')">👥 Funcionários</button>
+  <button onclick="showPage('importar-pdf')">📄 Importar PDF Folha</button>
+  <button onclick="showPage('importar-rubricas')">📊 Importar Rubricas</button>
+  <button onclick="showPage('exportar')">⬇️ Exportar Excel</button>
+  <button onclick="showPage('config')">⚙️ Configurações</button>
+</nav>
+
+<main>
+
+<!-- ════════════════ DASHBOARD ════════════════ -->
+<div id="page-dashboard" class="page active">
+  <div class="grid-4 mb-4" id="stat-cards"></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><h2>📋 Última Folha Importada</h2></div>
+      <div class="card-body" id="last-import-info">
+        <p class="text-muted" style="font-size:.88rem">Nenhuma folha importada ainda.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>🏢 Empresas Cadastradas</h2></div>
+      <div class="card-body" id="dash-empresas-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ EMPRESAS ════════════════ -->
+<div id="page-empresas" class="page">
+  <div class="card">
+    <div class="card-header">
+      <h2>🏢 Cadastro de Empresas</h2>
+      <button class="btn btn-primary btn-sm" onclick="openModal('modal-empresa')">➕ Nova Empresa</button>
+    </div>
+    <div class="card-body">
+      <div class="table-wrap">
+        <table id="tbl-empresas">
+          <thead><tr><th>#</th><th>Razão Social</th><th>CNPJ</th><th>Código</th><th>Contato</th><th>Status</th><th>Ações</th></tr></thead>
+          <tbody id="tbody-empresas"><tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">Nenhuma empresa cadastrada</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ DEPARTAMENTOS ════════════════ -->
+<div id="page-departamentos" class="page">
+  <div class="card">
+    <div class="card-header">
+      <h2>🗂 Departamentos / Centros de Custo</h2>
+      <button class="btn btn-primary btn-sm" onclick="openModal('modal-depto')">➕ Novo Departamento</button>
+    </div>
+    <div class="card-body">
+      <div class="form-group" style="max-width:260px;margin-bottom:16px">
+        <label>Filtrar por Empresa</label>
+        <select id="filter-depto-empresa" onchange="renderDeptos()">
+          <option value="">Todas as empresas</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Empresa</th><th>Departamento</th><th>C. Custo</th><th>Responsável</th><th>Ações</th></tr></thead>
+          <tbody id="tbody-deptos"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted)">Nenhum departamento cadastrado</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ FUNCIONÁRIOS ════════════════ -->
+<div id="page-funcionarios" class="page">
+  <div class="card">
+    <div class="card-header">
+      <h2>👥 Funcionários</h2>
+      <div class="gap-8">
+        <button class="btn btn-success btn-sm" onclick="exportFuncCSV()">⬇️ Exportar Excel</button>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-func')">➕ Adicionar</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="filters-bar">
+        <div class="form-group">
+          <label>Empresa</label>
+          <select id="filter-func-empresa" onchange="renderFuncionarios()">
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Departamento</label>
+          <select id="filter-func-depto" onchange="renderFuncionarios()">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Situação</label>
+          <select id="filter-func-status" onchange="renderFuncionarios()">
+            <option value="">Todas</option>
+            <option>Trabalhando</option>
+            <option>Demitido</option>
+            <option>Diretor</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:1">
+          <label>Buscar</label>
+          <input type="text" id="filter-func-nome" placeholder="Nome, CPF, cargo..." oninput="renderFuncionarios()">
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Nome</th><th>CPF</th><th>Cargo</th><th>Depto</th>
+              <th>Salário</th><th>VT</th><th>VR</th><th>VA</th><th>AM</th><th>AO</th>
+              <th>Situação</th><th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-funcionarios">
+            <tr><td colspan="13" style="text-align:center;padding:30px;color:var(--muted)">Importe uma folha PDF para ver funcionários</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ IMPORTAR PDF ════════════════ -->
+<div id="page-importar-pdf" class="page">
+  <div class="grid-2">
+    <div>
+      <div class="card">
+        <div class="card-header"><h2>📄 Importar Folha de Pagamento (PDF)</h2></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label>Empresa</label>
+            <select id="pdf-empresa-sel">
+              <option value="">— Selecione uma empresa —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Competência (Mês/Ano)</label>
+            <input type="month" id="pdf-competencia">
+          </div>
+          <div class="upload-zone" id="pdf-drop-zone" onclick="document.getElementById('pdf-file-input').click()"
+               ondragover="event.preventDefault();this.classList.add('drag-over')"
+               ondragleave="this.classList.remove('drag-over')"
+               ondrop="handlePdfDrop(event)">
+            <div class="upload-icon">📄</div>
+            <p>Clique ou arraste o PDF da folha aqui</p>
+            <small>Extrato Mensal gerado pelo sistema de folha</small>
+          </div>
+          <input type="file" id="pdf-file-input" accept=".pdf" style="display:none" onchange="handlePdfFile(this.files[0])">
+          <div id="pdf-status" style="margin-top:12px"></div>
+        </div>
+      </div>
+
+      <div class="card" id="card-pdf-preview" style="display:none">
+        <div class="card-header"><h2>👁 Pré-visualização</h2></div>
+        <div class="card-body">
+          <div id="pdf-preview-content"></div>
+          <div style="margin-top:16px; display:flex; gap:10px;">
+            <button class="btn btn-success" onclick="confirmPdfImport()">✅ Confirmar Importação</button>
+            <button class="btn btn-secondary" onclick="cancelPdfImport()">❌ Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card-header"><h2>📋 Log de Processamento</h2></div>
+        <div class="card-body">
+          <div class="log-box" id="pdf-log">Aguardando arquivo PDF...</div>
+          <div style="margin-top:12px">
+            <div class="progress-bar"><div class="progress-fill" id="pdf-progress" style="width:0%"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h2>💡 Como funciona</h2></div>
+        <div class="card-body">
+          <p style="font-size:.85rem;line-height:1.7;color:var(--muted)">
+            1. Selecione a empresa e competência<br>
+            2. Faça upload do PDF "Extrato Mensal"<br>
+            3. O sistema extrai automaticamente dados de todos os funcionários<br>
+            4. Confira os dados na pré-visualização<br>
+            5. Confirme para salvar no banco de dados<br>
+            6. Exporte a planilha Excel formatada
+          </p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>🗂 Folhas Importadas</h2>
+          <span id="folhas-count" class="badge-empresa"></span>
+        </div>
+        <div class="card-body" id="folhas-historico">
+          <p class="text-muted" style="font-size:.85rem">Nenhuma folha importada ainda.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ IMPORTAR RUBRICAS ════════════════ -->
+<div id="page-importar-rubricas" class="page">
+  <div class="grid-2">
+    <div>
+      <div class="card">
+        <div class="card-header"><h2>📊 Importar Planilha de Benefícios</h2></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label>Empresa</label>
+            <select id="rubrica-empresa-sel">
+              <option value="">— Selecione uma empresa —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Competência</label>
+            <input type="month" id="rubrica-competencia">
+          </div>
+          <div class="upload-zone" id="rubrica-drop-zone"
+               onclick="document.getElementById('rubrica-file-input').click()"
+               ondragover="event.preventDefault();this.classList.add('drag-over')"
+               ondragleave="this.classList.remove('drag-over')"
+               ondrop="handleRubricaDrop(event)">
+            <div class="upload-icon">📊</div>
+            <p>Clique ou arraste a planilha XLSX aqui</p>
+            <small>Arquivo: RUBRICAS_INFORMATIVAS — colunas VT, VR, VA, AM, AO</small>
+          </div>
+          <input type="file" id="rubrica-file-input" accept=".xlsx,.xls" style="display:none" onchange="handleRubricaFile(this.files[0])">
+          <div id="rubrica-status" style="margin-top:12px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card-header"><h2>📋 Log de Processamento</h2></div>
+        <div class="card-body">
+          <div class="log-box" id="rubrica-log">Aguardando arquivo XLSX...</div>
+        </div>
+      </div>
+      <div class="card" id="card-rubrica-preview" style="display:none">
+        <div class="card-header"><h2>👁 Rubricas Importadas</h2></div>
+        <div class="card-body">
+          <div id="rubrica-preview-content" class="table-wrap"></div>
+          <div style="margin-top:12px">
+            <button class="btn btn-success" onclick="confirmRubricaImport()">✅ Vincular Benefícios</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>🗂 Rubricas Importadas</h2>
+          <span id="rubricas-count" class="badge-empresa"></span>
+        </div>
+        <div class="card-body" id="rubricas-historico">
+          <p class="text-muted" style="font-size:.85rem">Nenhuma rubrica importada ainda.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ EXPORTAR ════════════════ -->
+<div id="page-exportar" class="page">
+
+  <div class="card" id="card-espelho-info" style="display:none;margin-bottom:0">
+    <div class="card-header" style="background:var(--teal-lt);border-bottom:2px solid var(--teal)">
+      <h2 style="color:var(--teal-dk)">⭐ Espelho da Folha disponível</h2>
+      <span id="espelho-badge" class="badge-empresa"></span>
+    </div>
+    <div class="card-body" id="espelho-info-body" style="padding:14px 24px"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>⬇️ Exportar Planilha Excel</h2></div>
+    <div class="card-body">
+      <div class="grid-3">
+        <div class="form-group">
+          <label>Empresa / CNPJ</label>
+          <select id="exp-empresa">
+            <option value="">Todas as empresas</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Departamento</label>
+          <select id="exp-depto">
+            <option value="">Todos os departamentos</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Competência (mês)</label>
+          <input type="month" id="exp-competencia">
+        </div>
+        <div class="form-group">
+          <label>Ano (relatório anual)</label>
+          <select id="exp-ano">
+            <option value="2026">2026</option>
+            <option value="2025">2025</option>
+            <option value="2024">2024</option>
+            <option value="2023">2023</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Situação</label>
+          <select id="exp-status">
+            <option value="">Todas</option>
+            <option>Trabalhando</option>
+            <option>Demitido</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Formato</label>
+          <select id="exp-formato" onchange="updateExportHint()">
+            <option value="espelho">⭐ Espelho da Folha (Completo — do PDF)</option>
+            <option value="anual">📅 Relatório Anual de Custos</option>
+            <option value="modelo">📋 Modelo Gerencial (do banco de dados)</option>
+            <option value="resumo">📊 Resumo por Departamento</option>
+          </select>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div id="exp-format-hint" style="margin-bottom:12px"></div>
+      <div id="exp-preview" style="margin-bottom:18px"></div>
+      <div class="gap-8">
+        <button class="btn btn-primary" onclick="previewExport()">👁 Pré-visualizar</button>
+        <button class="btn btn-success" onclick="exportarExcel()">⬇️ Baixar Excel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="card-exp-table" style="display:none">
+    <div class="card-header">
+      <h2>📋 Dados para Exportação</h2>
+      <span id="exp-count" class="badge-empresa"></span>
+    </div>
+    <div class="card-body">
+      <div class="table-wrap" id="exp-table-container"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ CONFIG ════════════════ -->
+<div id="page-config" class="page">
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><h2>⚙️ Parâmetros de Cálculo</h2></div>
+      <div class="card-body">
+        <div class="form-group">
+          <label>% Encargos Patronais (CLT)</label>
+          <input type="number" id="cfg-encargos" value="34.30" step="0.01">
+          <small class="text-muted" style="font-size:.76rem">FGTS 8% + INSS Patronal 20% + RAT + Terceiros</small>
+        </div>
+        <div class="form-group">
+          <label>% Provisão 13º</label>
+          <input type="number" id="cfg-13" value="8.33" step="0.01">
+        </div>
+        <div class="form-group">
+          <label>% Provisão Férias</label>
+          <input type="number" id="cfg-ferias" value="8.33" step="0.01">
+        </div>
+        <div class="form-group">
+          <label>% Provisão 1/3 Férias</label>
+          <input type="number" id="cfg-um-terco" value="2.78" step="0.01">
+        </div>
+        <div class="form-group">
+          <label>% FGTS s/ Provisões</label>
+          <input type="number" id="cfg-fgts-prov" value="2.22" step="0.01">
+        </div>
+        <button class="btn btn-primary" onclick="saveConfig()">💾 Salvar Parâmetros</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>💾 Dados & Backup</h2></div>
+      <div class="card-body">
+        <p style="font-size:.85rem;color:var(--muted);margin-bottom:16px">Os dados ficam salvos no navegador (localStorage). Use as opções abaixo para backup.</p>
+        <div class="gap-8" style="flex-direction:column">
+          <button class="btn btn-secondary" onclick="exportBackup()">📦 Exportar Backup (JSON)</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('import-backup-file').click()">📥 Importar Backup</button>
+          <input type="file" id="import-backup-file" accept=".json" style="display:none" onchange="importBackup(this)">
+          <div class="sep"></div>
+          <button class="btn btn-danger" onclick="resetAll()">🗑 Limpar Todos os Dados</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>📁 GitHub & Google Drive</h2></div>
+      <div class="card-body">
+        <div class="alert alert-info">
+          <span>💡</span>
+          <span>Este sistema é um arquivo HTML único. Salve-o no GitHub Pages para acesso online e use o botão abaixo para exportar para o Google Drive.</span>
+        </div>
+        <div class="form-group mt-4">
+          <label>URL do Repositório GitHub</label>
+          <input type="url" id="cfg-github-url" placeholder="https://github.com/seu-usuario/folha-pagamento">
+        </div>
+        <div class="sep"></div>
+        <button class="btn btn-secondary" onclick="showGithubInstructions()">📖 Ver instruções GitHub Pages</button>
+        <div id="github-instructions" style="display:none;margin-top:16px">
+          <div class="log-box" style="color:#a0aec0">
+1. Crie um repositório no GitHub chamado "folha-pagamento"
+2. Faça upload deste arquivo como "index.html"
+3. Vá em Settings > Pages > Source: main branch
+4. Acesse: https://seu-usuario.github.io/folha-pagamento
+5. Os dados ficam no localStorage do navegador de cada usuário
+6. Use "Exportar Backup" para salvar e compartilhar dados
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>ℹ️ Sobre o Sistema</h2></div>
+      <div class="card-body">
+        <p style="font-size:.85rem;line-height:1.8;color:var(--muted)">
+          <strong style="color:var(--teal-dk)">Equilibrym — Folha de Pagamento v1.0</strong><br>
+          Sistema de gestão de folha desenvolvido para Equilibrym Especialidades Médicas &amp; Terapêuticas.<br><br>
+          Funcionalidades:<br>
+          ✅ Cadastro de empresas e departamentos<br>
+          ✅ Importação de PDF (Extrato Mensal)<br>
+          ✅ Importação de rubricas/benefícios XLSX<br>
+          ✅ Vínculo automático benefícios por funcionário<br>
+          ✅ Exportação Excel com cálculos automáticos<br>
+          ✅ Filtros por CNPJ, departamento, competência<br>
+          ✅ Backup e restore de dados
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- ═══════════ MODALS ═══════════ -->
+
+<!-- Modal Empresa -->
+<div class="modal-overlay" id="modal-empresa">
+  <div class="modal">
+    <h3>🏢 Cadastrar Empresa</h3>
+    <input type="hidden" id="empresa-edit-id">
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Razão Social *</label>
+        <input type="text" id="emp-razao" placeholder="Nome da empresa">
+      </div>
+      <div class="form-group">
+        <label>CNPJ *</label>
+        <input type="text" id="emp-cnpj" placeholder="00.000.000/0000-00" maxlength="18" oninput="maskCNPJ(this)">
+      </div>
+      <div class="form-group">
+        <label>Código (sistema folha)</label>
+        <input type="text" id="emp-codigo" placeholder="ex: 207">
+      </div>
+      <div class="form-group">
+        <label>Contato / E-mail</label>
+        <input type="text" id="emp-contato" placeholder="contato@empresa.com">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-empresa')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEmpresa()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Departamento -->
+<div class="modal-overlay" id="modal-depto">
+  <div class="modal">
+    <h3>🗂 Cadastrar Departamento</h3>
+    <input type="hidden" id="depto-edit-id">
+    <div class="form-group">
+      <label>Empresa *</label>
+      <select id="depto-empresa-sel"></select>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Nome do Departamento *</label>
+        <input type="text" id="depto-nome" placeholder="ex: APOIO, VILA MARIANA...">
+      </div>
+      <div class="form-group">
+        <label>Código / C. Custo</label>
+        <input type="text" id="depto-codigo" placeholder="ex: 1, 2, CC001...">
+      </div>
+      <div class="form-group">
+        <label>Responsável</label>
+        <input type="text" id="depto-resp" placeholder="Nome do responsável">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-depto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveDepto()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Funcionário -->
+<div class="modal-overlay" id="modal-func">
+  <div class="modal">
+    <h3>👤 Funcionário</h3>
+    <input type="hidden" id="func-edit-id">
+    <div class="grid-2">
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Nome Completo *</label>
+        <input type="text" id="func-nome">
+      </div>
+      <div class="form-group">
+        <label>CPF</label>
+        <input type="text" id="func-cpf" oninput="maskCPF(this)" maxlength="14">
+      </div>
+      <div class="form-group">
+        <label>Empresa</label>
+        <select id="func-empresa-sel" onchange="updateFuncDeptos()"></select>
+      </div>
+      <div class="form-group">
+        <label>Departamento</label>
+        <select id="func-depto-sel"></select>
+      </div>
+      <div class="form-group">
+        <label>Cargo</label>
+        <input type="text" id="func-cargo">
+      </div>
+      <div class="form-group">
+        <label>Salário Contratual (R$)</label>
+        <input type="number" id="func-salario" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Situação</label>
+        <select id="func-situacao">
+          <option>Trabalhando</option>
+          <option>Demitido</option>
+          <option>Férias</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Vínculo</label>
+        <select id="func-vinculo">
+          <option>Celetista</option>
+          <option>Diretor</option>
+          <option>Estagiário</option>
+          <option>Celetista prazo determinado</option>
+        </select>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <p style="font-size:.8rem;font-weight:700;color:var(--slate);margin-bottom:10px">BENEFÍCIOS MENSAIS</p>
+    <div class="grid-3">
+      <div class="form-group"><label>VT (R$)</label><input type="number" id="func-vt" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label>VR (R$)</label><input type="number" id="func-vr" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label>VA (R$)</label><input type="number" id="func-va" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label>AM (R$)</label><input type="number" id="func-am" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label>AO (R$)</label><input type="number" id="func-ao" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-func')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveFunc()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+let DB = {
+  empresas: [],
+  departamentos: [],
+  funcionarios: [],
+  folhas: [],            // PDF imports history
+  rubricasHistorico: [], // XLSX imports history
+  rubricas: [],          // beneficios vinculados
+  config: {
+    encargos: 34.30,
+    prov13: 8.33,
+    provFerias: 8.33,
+    provUmTerco: 2.78,
+    fgtsProv: 2.22
+  }
+};
+
+// Load from localStorage
+function loadDB() {
+  const saved = localStorage.getItem('equilibrym_folha_db');
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      DB = { ...DB, ...parsed };
+    } catch(e) {}
+  }
+}
+
+function saveDB() {
+  localStorage.setItem('equilibrym_folha_db', JSON.stringify(DB));
+}
+
+// ═══════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  const btns = document.querySelectorAll('nav button');
+  btns.forEach(b => { if (b.getAttribute('onclick') === `showPage('${id}')`) b.classList.add('active'); });
+  if (id === 'dashboard') renderDashboard();
+  if (id === 'empresas') renderEmpresas();
+  if (id === 'departamentos') { populateEmpresaFilters(); renderDeptos(); }
+  if (id === 'funcionarios') { populateFuncFilters(); renderFuncionarios(); }
+  if (id === 'exportar') { populateExpFilters(); setTimeout(updateExportHint, 100); }
+  if (id === 'importar-pdf') { populatePdfSelects(); renderFolhasHistorico(); }
+  if (id === 'importar-rubricas') { populateRubricaSelects(); renderRubricasHistorico(); }
+}
+
+// ═══════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
+const fmtBRL = v => isNaN(v) ? '-' : Number(v).toLocaleString('pt-BR', {style:'currency',currency:'BRL'});
+const fmtNum = v => isNaN(v) ? '-' : Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2});
+
+function maskCNPJ(el) {
+  let v = el.value.replace(/\D/g,'');
+  v = v.replace(/^(\d{2})(\d)/,'$1.$2');
+  v = v.replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3');
+  v = v.replace(/\.(\d{3})(\d)/,'.$1/$2');
+  v = v.replace(/(\d{4})(\d)/,'$1-$2');
+  el.value = v;
+}
+function maskCPF(el) {
+  let v = el.value.replace(/\D/g,'');
+  v = v.replace(/(\d{3})(\d)/,'$1.$2');
+  v = v.replace(/(\d{3})\.(\d{3})(\d)/,'$1.$2.$3');
+  v = v.replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/,'$1.$2.$3-$4');
+  el.value = v;
+}
+
+function toast(msg, type='ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show toast-' + type;
+  setTimeout(() => t.className = '', 3500);
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  // populate empresa dropdowns in modals
+  if (id === 'modal-depto') populateModalEmpresaDropdowns();
+  if (id === 'modal-func') { populateModalEmpresaDropdowns(); updateFuncDeptos(); }
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// click outside modal to close
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+});
+
+function chipClass(depto) {
+  const map = {APOIO:1,PERDIZES:2,TATUAPE:3,'VILA MARIANA':4,SAC:5,APOIO:6};
+  const idx = Object.keys(map).indexOf((depto||'').toUpperCase()) % 7;
+  return 'chip-' + (idx < 0 ? 0 : idx);
+}
+
+// ═══════════════════════════════════════════════════════
+// CLOCK
+// ═══════════════════════════════════════════════════════
+setInterval(() => {
+  document.getElementById('clock').textContent = new Date().toLocaleString('pt-BR');
+}, 1000);
+
+// ═══════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════
+function renderDashboard() {
+  const totalFunc = DB.funcionarios.filter(f => f.situacao === 'Trabalhando').length;
+  const totalEmp = DB.empresas.length;
+  const totalDepto = DB.departamentos.length;
+  const totalFolhas = DB.folhas.length;
+
+  // last folha stats
+  let totalLiq = 0, totalProv = 0;
+  if (DB.folhas.length) {
+    const last = DB.folhas[DB.folhas.length - 1];
+    last.funcionarios.forEach(f => {
+      totalLiq += f.liquido || 0;
+      totalProv += f.proventos || 0;
+    });
+  }
+
+  document.getElementById('stat-cards').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Funcionários Ativos</div><div class="stat-value">${totalFunc}</div><div class="stat-sub">em ${totalEmp} empresa(s)</div></div>
+    <div class="stat-card"><div class="stat-label">Empresas</div><div class="stat-value">${totalEmp}</div><div class="stat-sub">${totalDepto} departamentos</div></div>
+    <div class="stat-card"><div class="stat-label">Folhas Importadas</div><div class="stat-value">${totalFolhas}</div><div class="stat-sub">competências</div></div>
+    <div class="stat-card"><div class="stat-label">Último Líquido Geral</div><div class="stat-value">${fmtBRL(totalLiq)}</div><div class="stat-sub">Proventos: ${fmtBRL(totalProv)}</div></div>
+  `;
+
+  // last import
+  if (DB.folhas.length) {
+    const last = DB.folhas[DB.folhas.length - 1];
+    document.getElementById('last-import-info').innerHTML = `
+      <p><strong>Empresa:</strong> ${last.empresaNome || '-'}</p>
+      <p><strong>Competência:</strong> ${last.competencia || '-'}</p>
+      <p><strong>Funcionários:</strong> ${last.funcionarios.length}</p>
+      <p><strong>Data import:</strong> ${last.importadoEm || '-'}</p>
+      <div style="margin-top:12px">
+        <span class="status status-ok">${last.funcionarios.filter(f=>f.situacao==='Trabalhando').length} trabalhando</span>
+        <span class="status status-dem" style="margin-left:6px">${last.funcionarios.filter(f=>f.situacao==='Demitido').length} demitidos</span>
+      </div>
+    `;
+  }
+
+  // empresas list
+  document.getElementById('dash-empresas-list').innerHTML = DB.empresas.length
+    ? DB.empresas.map(e => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-weight:600;font-size:.88rem">${e.razao}</div>
+            <div style="font-size:.77rem;color:var(--muted)">${e.cnpj || ''} — Cód: ${e.codigo || ''}</div>
+          </div>
+          <span class="status status-ok">Ativa</span>
+        </div>`).join('')
+    : '<p class="text-muted" style="font-size:.88rem">Cadastre empresas no menu Empresas.</p>';
+
+  // badge header
+  // Update header badge with first empresa
+  const badge = document.getElementById('header-empresa-badge');
+  if (badge) {
+    if (DB.empresas.length > 0) {
+      badge.style.display = '';
+      badge.textContent = DB.empresas.length === 1 ? DB.empresas[0].razao : DB.empresas.length + ' empresas';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// EMPRESAS
+// ═══════════════════════════════════════════════════════
+function saveEmpresa() {
+  const id = document.getElementById('empresa-edit-id').value;
+  const razao = document.getElementById('emp-razao').value.trim();
+  const cnpj = document.getElementById('emp-cnpj').value.trim();
+  if (!razao) { toast('Informe a razão social', 'err'); return; }
+
+  const obj = {
+    id: id || uid(),
+    razao,
+    cnpj,
+    codigo: document.getElementById('emp-codigo').value.trim(),
+    contato: document.getElementById('emp-contato').value.trim()
+  };
+
+  if (id) {
+    const idx = DB.empresas.findIndex(e => e.id === id);
+    if (idx >= 0) DB.empresas[idx] = obj;
+  } else {
+    DB.empresas.push(obj);
+  }
+  saveDB();
+  closeModal('modal-empresa');
+  renderEmpresas();
+  updateAllSelects();
+  populatePdfSelects();
+  populateRubricaSelects();
+  toast('Empresa salva!');
+  // clear form
+  ['empresa-edit-id','emp-razao','emp-cnpj','emp-codigo','emp-contato'].forEach(id => document.getElementById(id).value = '');
+}
+
+function renderEmpresas() {
+  const tbody = document.getElementById('tbody-empresas');
+  if (!DB.empresas.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">Nenhuma empresa cadastrada</td></tr>';
+    return;
+  }
+  tbody.innerHTML = DB.empresas.map((e,i) => `
+    <tr>
+      <td>${i+1}</td>
+      <td class="text-bold">${e.razao}</td>
+      <td>${e.cnpj || '-'}</td>
+      <td>${e.codigo || '-'}</td>
+      <td>${e.contato || '-'}</td>
+      <td><span class="status status-ok">Ativa</span></td>
+      <td class="td-actions">
+        <button class="btn btn-secondary btn-sm btn-icon" onclick="editEmpresa('${e.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm btn-icon" onclick="deleteEmpresa('${e.id}')">🗑</button>
+      </td>
+    </tr>`).join('');
+}
+
+function editEmpresa(id) {
+  const e = DB.empresas.find(x => x.id === id);
+  if (!e) return;
+  document.getElementById('empresa-edit-id').value = e.id;
+  document.getElementById('emp-razao').value = e.razao;
+  document.getElementById('emp-cnpj').value = e.cnpj || '';
+  document.getElementById('emp-codigo').value = e.codigo || '';
+  document.getElementById('emp-contato').value = e.contato || '';
+  openModal('modal-empresa');
+}
+
+function deleteEmpresa(id) {
+  if (!confirm('Excluir esta empresa?')) return;
+  DB.empresas = DB.empresas.filter(e => e.id !== id);
+  saveDB(); renderEmpresas(); updateAllSelects();
+  toast('Empresa excluída');
+}
+
+// ═══════════════════════════════════════════════════════
+// DEPARTAMENTOS
+// ═══════════════════════════════════════════════════════
+function populateEmpresaFilters() {
+  ['filter-depto-empresa','filter-func-empresa','exp-empresa'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = '<option value="">Todas</option>' + DB.empresas.map(e => `<option value="${e.id}">${e.razao}</option>`).join('');
+    el.value = cur;
+  });
+}
+
+function populateModalEmpresaDropdowns() {
+  const opts = DB.empresas.map(e => `<option value="${e.id}">${e.razao}</option>`).join('');
+  ['depto-empresa-sel','func-empresa-sel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">— Selecione —</option>' + opts;
+  });
+  ['pdf-empresa-sel','rubrica-empresa-sel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">— Selecione —</option>' + opts;
+  });
+}
+
+function updateAllSelects() {
+  populateEmpresaFilters();
+  populateModalEmpresaDropdowns();
+  populateExpFilters();
+}
+
+function populatePdfSelects() {
+  const opts = '<option value="">— Selecione uma empresa —</option>' +
+    DB.empresas.map(e => `<option value="${e.id}">${e.razao}</option>`).join('');
+  const el = document.getElementById('pdf-empresa-sel');
+  if (el) el.innerHTML = opts;
+
+  // Default competência = mês anterior
+  const compEl = document.getElementById('pdf-competencia');
+  if (compEl && !compEl.value) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    compEl.value = d.toISOString().slice(0, 7);
+  }
+}
+
+function populateRubricaSelects() {
+  const opts = '<option value="">— Selecione uma empresa —</option>' +
+    DB.empresas.map(e => `<option value="${e.id}">${e.razao}</option>`).join('');
+  const el = document.getElementById('rubrica-empresa-sel');
+  if (el) el.innerHTML = opts;
+
+  // Default competência = mês atual
+  const compEl = document.getElementById('rubrica-competencia');
+  if (compEl && !compEl.value) {
+    compEl.value = new Date().toISOString().slice(0, 7);
+  }
+}
+
+function saveDepto() {
+  const id = document.getElementById('depto-edit-id').value;
+  const nome = document.getElementById('depto-nome').value.trim();
+  const empId = document.getElementById('depto-empresa-sel').value;
+  if (!nome || !empId) { toast('Informe empresa e nome do departamento', 'err'); return; }
+
+  const obj = {
+    id: id || uid(),
+    empresaId: empId,
+    nome,
+    codigo: document.getElementById('depto-codigo').value.trim(),
+    responsavel: document.getElementById('depto-resp').value.trim()
+  };
+
+  if (id) { const idx = DB.departamentos.findIndex(d => d.id === id); if (idx >= 0) DB.departamentos[idx] = obj; }
+  else DB.departamentos.push(obj);
+
+  saveDB(); closeModal('modal-depto'); renderDeptos();
+  toast('Departamento salvo!');
+}
+
+function renderDeptos() {
+  const filter = document.getElementById('filter-depto-empresa')?.value || '';
+  const list = filter ? DB.departamentos.filter(d => d.empresaId === filter) : DB.departamentos;
+  const tbody = document.getElementById('tbody-deptos');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted)">Nenhum departamento cadastrado</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map((d,i) => {
+    const emp = DB.empresas.find(e => e.id === d.empresaId);
+    return `<tr>
+      <td>${i+1}</td>
+      <td>${emp?.razao || '-'}</td>
+      <td><span class="dept-chip ${chipClass(d.nome)}">${d.nome}</span></td>
+      <td>${d.codigo || '-'}</td>
+      <td>${d.responsavel || '-'}</td>
+      <td class="td-actions">
+        <button class="btn btn-secondary btn-sm btn-icon" onclick="editDepto('${d.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm btn-icon" onclick="deleteDepto('${d.id}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+  populateEmpresaFilters();
+}
+
+function editDepto(id) {
+  const d = DB.departamentos.find(x => x.id === id);
+  if (!d) return;
+  openModal('modal-depto');
+  setTimeout(() => {
+    document.getElementById('depto-edit-id').value = d.id;
+    document.getElementById('depto-empresa-sel').value = d.empresaId;
+    document.getElementById('depto-nome').value = d.nome;
+    document.getElementById('depto-codigo').value = d.codigo || '';
+    document.getElementById('depto-resp').value = d.responsavel || '';
+  }, 50);
+}
+
+function deleteDepto(id) {
+  if (!confirm('Excluir departamento?')) return;
+  DB.departamentos = DB.departamentos.filter(d => d.id !== id);
+  saveDB(); renderDeptos(); toast('Departamento excluído');
+}
+
+// ═══════════════════════════════════════════════════════
+// FUNCIONÁRIOS
+// ═══════════════════════════════════════════════════════
+function populateFuncFilters() {
+  populateEmpresaFilters();
+  const el = document.getElementById('filter-func-depto');
+  if (el) {
+    el.innerHTML = '<option value="">Todos</option>' +
+      [...new Set(DB.funcionarios.map(f => f.departamento))].filter(Boolean).map(d => `<option>${d}</option>`).join('');
+  }
+}
+
+function populateExpFilters() {
+  // Empresas
+  populateEmpresaFilters();
+
+  // Departamentos (todos os que existem nos funcionários)
+  const deptoEl = document.getElementById('exp-depto');
+  if (deptoEl) {
+    deptoEl.innerHTML = '<option value="">Todos os departamentos</option>' +
+      [...new Set(DB.funcionarios.map(f => f.departamento))].filter(Boolean).sort()
+        .map(d => `<option value="${d}">${d}</option>`).join('');
+  }
+
+  // Competência padrão = mês anterior
+  const compEl = document.getElementById('exp-competencia');
+  if (compEl && !compEl.value) {
+    const d = new Date(); d.setMonth(d.getMonth() - 1);
+    compEl.value = d.toISOString().slice(0, 7);
+  }
+
+  // Ano padrão = ano atual
+  const anoEl = document.getElementById('exp-ano');
+  if (anoEl && !anoEl.value) {
+    anoEl.value = new Date().getFullYear().toString();
+  }
+
+  // Atualizar anos disponíveis com base nas folhas importadas
+  const anosDisp = [...new Set((DB.folhas || []).map(f => (f.competencia||'').slice(0,4)).filter(Boolean))].sort().reverse();
+  if (anoEl && anosDisp.length) {
+    const curAno = anoEl.value || new Date().getFullYear().toString();
+    const allAnos = [...new Set([...anosDisp, '2026','2025','2024','2023'])].sort().reverse();
+    anoEl.innerHTML = allAnos.map(a => `<option value="${a}"${a===curAno?' selected':''}>${a}</option>`).join('');
+  }
+}
+
+function updateFuncDeptos() {
+  const empId = document.getElementById('func-empresa-sel').value;
+  const deptos = DB.departamentos.filter(d => !empId || d.empresaId === empId);
+  document.getElementById('func-depto-sel').innerHTML = '<option value="">— Selecione —</option>' +
+    deptos.map(d => `<option value="${d.id}">${d.nome}</option>`).join('');
+}
+
+function saveFunc() {
+  const id = document.getElementById('func-edit-id').value;
+  const nome = document.getElementById('func-nome').value.trim();
+  if (!nome) { toast('Informe o nome', 'err'); return; }
+  const deptoId = document.getElementById('func-depto-sel').value;
+  const depto = DB.departamentos.find(d => d.id === deptoId);
+
+  const obj = {
+    id: id || uid(),
+    nome,
+    cpf: document.getElementById('func-cpf').value,
+    empresaId: document.getElementById('func-empresa-sel').value,
+    deptoId,
+    departamento: depto?.nome || '',
+    cargo: document.getElementById('func-cargo').value,
+    salario: parseFloat(document.getElementById('func-salario').value) || 0,
+    situacao: document.getElementById('func-situacao').value,
+    vinculo: document.getElementById('func-vinculo').value,
+    vt: parseFloat(document.getElementById('func-vt').value) || 0,
+    vr: parseFloat(document.getElementById('func-vr').value) || 0,
+    va: parseFloat(document.getElementById('func-va').value) || 0,
+    am: parseFloat(document.getElementById('func-am').value) || 0,
+    ao: parseFloat(document.getElementById('func-ao').value) || 0,
+  };
+
+  if (id) { const idx = DB.funcionarios.findIndex(f => f.id === id); if (idx >= 0) DB.funcionarios[idx] = obj; }
+  else DB.funcionarios.push(obj);
+
+  saveDB(); closeModal('modal-func'); renderFuncionarios();
+  toast('Funcionário salvo!');
+}
+
+function renderFuncionarios() {
+  const empFilter = document.getElementById('filter-func-empresa')?.value || '';
+  const dFilter = document.getElementById('filter-func-depto')?.value || '';
+  const sFilter = document.getElementById('filter-func-status')?.value || '';
+  const nFilter = (document.getElementById('filter-func-nome')?.value || '').toLowerCase();
+
+  let list = DB.funcionarios.filter(f => {
+    if (empFilter && f.empresaId !== empFilter) return false;
+    if (dFilter && f.departamento !== dFilter) return false;
+    if (sFilter && f.situacao !== sFilter) return false;
+    if (nFilter && !(f.nome||'').toLowerCase().includes(nFilter) && !(f.cpf||'').includes(nFilter) && !(f.cargo||'').toLowerCase().includes(nFilter)) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('tbody-funcionarios');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--muted)">Nenhum funcionário encontrado</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map((f,i) => `
+    <tr>
+      <td>${i+1}</td>
+      <td class="text-bold">${f.nome}</td>
+      <td style="color:var(--muted);font-size:.78rem">${f.cpf||'-'}</td>
+      <td>${f.cargo||'-'}</td>
+      <td><span class="dept-chip ${chipClass(f.departamento)}">${f.departamento||'-'}</span></td>
+      <td class="td-num">${fmtBRL(f.salario)}</td>
+      <td class="td-num">${fmtBRL(f.vt)}</td>
+      <td class="td-num">${fmtBRL(f.vr)}</td>
+      <td class="td-num">${fmtBRL(f.va)}</td>
+      <td class="td-num">${fmtBRL(f.am)}</td>
+      <td class="td-num">${fmtBRL(f.ao)}</td>
+      <td><span class="status ${f.situacao==='Trabalhando'?'status-ok':f.situacao==='Demitido'?'status-dem':'status-dir'}">${f.situacao||'?'}</span></td>
+      <td class="td-actions">
+        <button class="btn btn-secondary btn-sm btn-icon" onclick="editFunc('${f.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm btn-icon" onclick="deleteFunc('${f.id}')">🗑</button>
+      </td>
+    </tr>`).join('');
+}
+
+function editFunc(id) {
+  const f = DB.funcionarios.find(x => x.id === id);
+  if (!f) return;
+  openModal('modal-func');
+  setTimeout(() => {
+    document.getElementById('func-edit-id').value = f.id;
+    document.getElementById('func-nome').value = f.nome;
+    document.getElementById('func-cpf').value = f.cpf || '';
+    document.getElementById('func-empresa-sel').value = f.empresaId || '';
+    updateFuncDeptos();
+    setTimeout(() => {
+      document.getElementById('func-depto-sel').value = f.deptoId || '';
+      document.getElementById('func-cargo').value = f.cargo || '';
+      document.getElementById('func-salario').value = f.salario || '';
+      document.getElementById('func-situacao').value = f.situacao || 'Trabalhando';
+      document.getElementById('func-vinculo').value = f.vinculo || 'Celetista';
+      document.getElementById('func-vt').value = f.vt || '';
+      document.getElementById('func-vr').value = f.vr || '';
+      document.getElementById('func-va').value = f.va || '';
+      document.getElementById('func-am').value = f.am || '';
+      document.getElementById('func-ao').value = f.ao || '';
+    }, 50);
+  }, 50);
+}
+
+function deleteFunc(id) {
+  if (!confirm('Excluir funcionário?')) return;
+  DB.funcionarios = DB.funcionarios.filter(f => f.id !== id);
+  saveDB(); renderFuncionarios(); toast('Funcionário excluído');
+}
+
+
+// ═══════════════════════════════════════════════════════
+// SISTEMA DE ESTILOS UNIFICADO EQUILIBRYM
+// ═══════════════════════════════════════════════════════
+
+const EQ = {
+  // Paleta Equilibrym
+  TEAL_DK:  '2C7A72',
+  TEAL_MD:  '3D9E96',
+  TEAL_LT:  'E8F5F4',
+  TEAL_XLT: 'F4FAFA',
+  SLATE:    '4A5A72',
+  SLATE_LT: 'EEF1F5',
+  SLATE_DK: '2D3748',
+  WHITE:    'FFFFFF',
+  TOTAL:    '1A4A45',
+  PROV_BG:  'ECFDF5',
+  PROV_H:   '065F46',
+  DESC_BG:  'FEF2F2',
+  DESC_H:   '991B1B',
+  GOLD:     'B7791F',
+  GOLD_LT:  'FFFBEB',
+  PURPLE_LT:'F5F3FF',
+
+  // Estilos reutilizáveis
+  s(bold, bg, fg, align, sz, wrap, border) {
+    const brd = border !== false ? {
+      top:    { style: 'thin',  color: { rgb: 'CBD5E0' } },
+      bottom: { style: 'thin',  color: { rgb: 'CBD5E0' } },
+      left:   { style: 'thin',  color: { rgb: 'CBD5E0' } },
+      right:  { style: 'thin',  color: { rgb: 'CBD5E0' } }
+    } : undefined;
+    return {
+      font:      { bold: !!bold, color: { rgb: fg || 'FFFFFF' }, sz: sz || 9, name: 'Calibri' },
+      fill:      { fgColor: { rgb: bg || '2C7A72' }, patternType: 'solid' },
+      alignment: { horizontal: align || 'center', vertical: 'center', wrapText: !!wrap },
+      ...(brd ? { border: brd } : {})
+    };
+  },
+
+  hair(bg, fg, align, bold, sz) {
+    return {
+      font:      { bold: !!bold, color: { rgb: fg || '2D3748' }, sz: sz || 9, name: 'Calibri' },
+      fill:      { fgColor: { rgb: bg || 'FFFFFF' }, patternType: 'solid' },
+      alignment: { horizontal: align || 'left', vertical: 'center' },
+      border: {
+        top:    { style: 'hair', color: { rgb: 'D1DDE6' } },
+        bottom: { style: 'hair', color: { rgb: 'D1DDE6' } },
+        left:   { style: 'hair', color: { rgb: 'CBD5E0' } },
+        right:  { style: 'hair', color: { rgb: 'CBD5E0' } }
+      }
+    };
+  },
+
+  // Aplica estilo a uma célula
+  set(ws, r, c, style, numFmt) {
+    const addr = XLSX.utils.encode_cell({ r, c });
+    if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+    ws[addr].s = style;
+    // Garante tipo numérico para formatação de moeda
+    if (typeof ws[addr].v === 'number') ws[addr].t = 'n';
+    if (numFmt && ws[addr].v !== null && ws[addr].v !== '' && ws[addr].v !== undefined) {
+      ws[addr].s.numFmt = numFmt;
+    }
+  },
+
+  BRL: 'R$ #,##0.00',
+  NUM: '#,##0',
+
+  // Preenche linha inteira
+  fillRow(ws, ri, cols, style, numFmt) {
+    for (let ci = 0; ci < cols; ci++) {
+      this.set(ws, ri, ci, style, numFmt);
+    }
+  },
+
+  // Header de seção colorido com merge
+  sectionTitle(ws, ri, c1, c2, label, bg, sz) {
+    const addr = XLSX.utils.encode_cell({ r: ri, c: c1 });
+    if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+    ws[addr].v = label;
+    ws[addr].s = this.s(true, bg || this.TEAL_DK, 'FFFFFF', 'left', sz || 11, false, false);
+    for (let c = c1+1; c <= c2; c++) {
+      const a = XLSX.utils.encode_cell({ r: ri, c });
+      if (!ws[a]) ws[a] = { t: 's', v: '' };
+      ws[a].s = this.s(false, bg || this.TEAL_DK, 'FFFFFF', 'center', 9, false, false);
+    }
+  }
+};
+
+// Número formatado BR
+const n2 = v => Math.round((parseFloat(v) || 0) * 100) / 100;
+const brl = v => (!v && v !== 0) ? null : n2(v);
+
+// Corrige tipos de células: garante que números sejam tipo 'n' no XLSX
+// (xlsx-js-style precisa disso para aplicar numFmt corretamente)
+function fixCellTypes(ws) {
+  if (!ws['!ref']) return ws;
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr];
+      if (!cell) continue;
+      // Se o valor é número e o tipo não é 'n', corrige
+      if (typeof cell.v === 'number' && cell.t !== 'n') {
+        cell.t = 'n';
+      }
+      // Se tem numFmt no estilo mas tipo string, tenta converter
+      if (cell.s && cell.s.numFmt && cell.t === 's' && !isNaN(parseFloat(cell.v)) && cell.v !== '') {
+        const num = parseFloat(cell.v);
+        if (!isNaN(num)) { cell.v = num; cell.t = 'n'; }
+      }
+    }
+  }
+  return ws;
+}
+
+// ═══════════════════════════════════════════════════════
+// EXPORTAR FUNCIONÁRIOS (3 abas: Cadastro, Benefícios, Resumo)
+// ═══════════════════════════════════════════════════════
+function exportFuncCSV() {
+  const funcs = DB.funcionarios;
+  if (!funcs.length) { toast('Nenhum funcionário para exportar', 'warn'); return; }
+
+  const wb = XLSX.utils.book_new();
+  const empresa = DB.empresas.find(e => e.id === funcs[0]?.empresaId) || DB.empresas[0];
+  const hoje = new Date().toLocaleDateString('pt-BR');
+
+  // ── Helper: cabeçalho padrão Equilibrym ──────────────
+  function addHeader(ws, titulo, subtitulo, totalCols) {
+    // Linha 0 — título
+    const a0 = XLSX.utils.encode_cell({ r:0, c:0 });
+    ws[a0] = { t:'s', v: titulo };
+    ws[a0].s = EQ.s(true, EQ.TEAL_DK, 'FFFFFF', 'left', 14, false, false);
+    for (let c=1; c<totalCols; c++) {
+      const a = XLSX.utils.encode_cell({ r:0, c });
+      ws[a] = { t:'s', v:'' };
+      ws[a].s = EQ.s(false, EQ.TEAL_DK, 'FFFFFF', 'left', 14, false, false);
+    }
+    // Linha 1 — subtítulo
+    const a1 = XLSX.utils.encode_cell({ r:1, c:0 });
+    ws[a1] = { t:'s', v: subtitulo };
+    ws[a1].s = EQ.s(false, EQ.TEAL_LT, EQ.TEAL_DK, 'left', 9, false, false);
+    for (let c=1; c<totalCols; c++) {
+      const a = XLSX.utils.encode_cell({ r:1, c });
+      ws[a] = { t:'s', v:'' };
+      ws[a].s = EQ.s(false, EQ.TEAL_LT, EQ.TEAL_DK, 'left', 9, false, false);
+    }
+    if (!ws['!merges']) ws['!merges'] = [];
+    ws['!merges'].push({ s:{r:0,c:0}, e:{r:0,c:totalCols-1} });
+    ws['!merges'].push({ s:{r:1,c:0}, e:{r:1,c:totalCols-1} });
+    if (!ws['!rows']) ws['!rows'] = [];
+    ws['!rows'][0] = { hpt: 28 };
+    ws['!rows'][1] = { hpt: 16 };
+    ws['!rows'][2] = { hpt:  5 };
+  }
+
+  // ════════ ABA 1 — CADASTRO COMPLETO ══════════════════
+  const rows1 = [];
+  rows1.push(['EQUILIBRYM — CADASTRO DE FUNCIONÁRIOS']);
+  rows1.push([`Empresa: ${empresa?.razao||'TODAS'}  |  CNPJ: ${empresa?.cnpj||''}  |  Gerado em: ${hoje}  |  Total: ${funcs.length} funcionários`]);
+  rows1.push([]);
+
+  // Separadores de departamento
+  const depts = [...new Set(funcs.map(f => f.departamento||'SEM DEPTO'))].sort();
+  const HDR1 = ['Nº','NOME COMPLETO','CPF','SITUAÇÃO','VÍNCULO','DEPARTAMENTO','CARGO','SALÁRIO CONTRATUAL','VT','VR','VA','AM','AO','TOTAL BENEFÍCIOS'];
+
+  depts.forEach(dept => {
+    const df = funcs.filter(f=>(f.departamento||'SEM DEPTO')===dept);
+    rows1.push([`▸  ${dept}  —  ${df.length} funcionário(s)`]);
+    rows1.push(HDR1);
+    df.forEach((f,i) => {
+      const totBen = n2(f.vt)+n2(f.vr)+n2(f.va)+n2(f.am)+n2(f.ao);
+      rows1.push([i+1, f.nome, f.cpf||'-', f.situacao, f.vinculo, f.departamento||'-', f.cargo||'-',
+        brl(f.salario), brl(f.vt)||null, brl(f.vr)||null, brl(f.va)||null, brl(f.am)||null, brl(f.ao)||null, brl(totBen)]);
+    });
+    rows1.push([]); // spacer
+  });
+
+  const ws1 = XLSX.utils.aoa_to_sheet(rows1);
+  ws1['!cols'] = [{wch:4},{wch:36},{wch:16},{wch:13},{wch:22},{wch:20},{wch:30},{wch:16},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:15}];
+
+  // Aplicar estilos ws1
+  rows1.forEach((row, ri) => {
+    const isDept   = ri>2 && typeof row[0]==='string' && row[0].startsWith('▸');
+    const isHdr    = ri>2 && row[0]==='Nº';
+    const isSpace  = row.length===0 || (row.length===1 && row[0]==='');
+    const isData   = !isDept && !isHdr && !isSpace && ri>2 && row.length>1;
+
+    row.forEach((_, ci) => {
+      const addr = XLSX.utils.encode_cell({r:ri, c:ci});
+      if (!ws1[addr]) ws1[addr] = {t:'s', v:''};
+      const cell = ws1[addr]; const val = cell.v;
+      const isNum = ci>=7;
+
+      if (ri===0) { cell.s = EQ.s(true, EQ.TEAL_DK, 'FFFFFF', 'left', 14, false, false); }
+      else if (ri===1) { cell.s = EQ.s(false, EQ.TEAL_LT, EQ.TEAL_DK, 'left', 9, false, false); }
+      else if (isDept) {
+        cell.s = EQ.s(true, EQ.TEAL_MD, 'FFFFFF', 'left', 10, false, false);
+        if (ci===0) { if (!ws1['!merges']) ws1['!merges']=[]; ws1['!merges'].push({s:{r:ri,c:0},e:{r:ri,c:13}}); }
+      }
+      else if (isHdr) { cell.s = EQ.s(true, EQ.SLATE, 'FFFFFF', 'center', 9, true, true); }
+      else if (isData) {
+        const even = ri%2===0;
+        const bg = even ? EQ.TEAL_XLT : EQ.WHITE;
+        const isName=ci===1, isSit=ci===3, isBen=ci===13;
+        cell.s = EQ.hair(bg, isName?EQ.TEAL_DK:isBen?EQ.TOTAL:EQ.SLATE_DK,
+          isNum?'right':(ci<=1?'left':'center'), isName||isBen, 9);
+        if (isNum && val) cell.s.numFmt = EQ.BRL;
+      }
+    });
+    if (isDept) ws1['!rows'] = (ws1['!rows']||[]); ws1['!rows'] = ws1['!rows'] || [];
+    if (!ws1['!rows'][ri]) ws1['!rows'][ri] = {};
+    if (ri===0) ws1['!rows'][ri].hpt=28;
+    else if (ri===1) ws1['!rows'][ri].hpt=16;
+    else if (ri===2) ws1['!rows'][ri].hpt=5;
+    else if (isDept) ws1['!rows'][ri] = {hpt:18};
+    else if (isHdr)  ws1['!rows'][ri] = {hpt:22};
+    else if (isSpace) ws1['!rows'][ri] = {hpt:6};
+    else ws1['!rows'][ri] = {hpt:15};
+  });
+
+  if (!ws1['!merges']) ws1['!merges'] = [];
+  ws1['!merges'].push({s:{r:0,c:0},e:{r:0,c:13}});
+  ws1['!merges'].push({s:{r:1,c:0},e:{r:1,c:13}});
+  XLSX.utils.book_append_sheet(wb, fixCellTypes(ws1), '📋 Cadastro');
+
+  // ════════ ABA 2 — BENEFÍCIOS ═════════════════════════
+  const rows2 = [];
+  rows2.push(['EQUILIBRYM — BENEFÍCIOS POR FUNCIONÁRIO']);
+  rows2.push([`Empresa: ${empresa?.razao||'TODAS'}  |  Gerado em: ${hoje}`]);
+  rows2.push([]);
+  rows2.push(['NOME','DEPARTAMENTO','CARGO','VT','VR','VA','AM','AO','TOTAL BENEFÍCIOS']);
+
+  let tVT=0,tVR=0,tVA=0,tAM=0,tAO=0;
+  funcs.sort((a,b)=>(a.departamento||'').localeCompare(b.departamento||'')).forEach((f,fi) => {
+    const tot=n2(f.vt)+n2(f.vr)+n2(f.va)+n2(f.am)+n2(f.ao);
+    tVT+=n2(f.vt);tVR+=n2(f.vr);tVA+=n2(f.va);tAM+=n2(f.am);tAO+=n2(f.ao);
+    rows2.push([f.nome, f.departamento||'-', f.cargo||'-',
+      brl(f.vt)||null, brl(f.vr)||null, brl(f.va)||null, brl(f.am)||null, brl(f.ao)||null, brl(tot)]);
+  });
+  rows2.push([]);
+  rows2.push(['TOTAL GERAL','','', brl(tVT),brl(tVR),brl(tVA),brl(tAM),brl(tAO),brl(tVT+tVR+tVA+tAM+tAO)]);
+
+  const ws2 = XLSX.utils.aoa_to_sheet(rows2);
+  ws2['!cols'] = [{wch:36},{wch:20},{wch:30},{wch:13},{wch:13},{wch:13},{wch:13},{wch:13},{wch:16}];
+  ws2['!merges'] = [{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}}];
+  const isNumBen = ci => ci>=3;
+  rows2.forEach((row, ri) => {
+    row.forEach((_, ci) => {
+      const addr = XLSX.utils.encode_cell({r:ri,c:ci});
+      if (!ws2[addr]) ws2[addr]={t:'s',v:''};
+      const cell=ws2[addr]; const val=cell.v;
+      const isNum=isNumBen(ci);
+      if (ri===0) cell.s=EQ.s(true,EQ.TEAL_DK,'FFFFFF','left',14,false,false);
+      else if (ri===1) cell.s=EQ.s(false,EQ.TEAL_LT,EQ.TEAL_DK,'left',9,false,false);
+      else if (ri===3) cell.s=EQ.s(true,EQ.SLATE,'FFFFFF','center',9,true,true);
+      else if (ri===rows2.length-1) {
+        cell.s=EQ.s(true,EQ.TOTAL,'FFFFFF',isNum?'right':'left',10,false,true);
+        if (isNum&&val) cell.s.numFmt=EQ.BRL;
+      } else if (ri>3 && row.length>1) {
+        const even=ri%2===0;
+        const isTot=ci===8;
+        cell.s=EQ.hair(even?EQ.TEAL_XLT:EQ.WHITE,isTot?EQ.TOTAL:EQ.SLATE_DK,isNum?'right':'left',isTot,9);
+        if (isNum&&val) cell.s.numFmt=EQ.BRL;
+      }
+    });
+    if (!ws2['!rows']) ws2['!rows']=[];
+    ws2['!rows'][ri] = ri===0?{hpt:28}:ri===1?{hpt:16}:ri===2?{hpt:5}:ri===3?{hpt:22}:{hpt:15};
+  });
+  XLSX.utils.book_append_sheet(wb, fixCellTypes(ws2), '💰 Benefícios');
+
+  // ════════ ABA 3 — RESUMO DEPARTAMENTO ════════════════
+  const rows3 = [];
+  rows3.push(['EQUILIBRYM — RESUMO POR DEPARTAMENTO']);
+  rows3.push([`Empresa: ${empresa?.razao||'TODAS'}  |  Gerado em: ${hoje}`]);
+  rows3.push([]);
+  rows3.push(['DEPARTAMENTO','FUNCIONÁRIOS','SALÁRIO TOTAL','PROVENTOS','BENEFÍCIOS','FGTS','CUSTO C/ ENCARGOS']);
+
+  const encR=(DB.config?.encargos||34.3)/100;
+  const byD={};
+  funcs.forEach(f=>{
+    const d=f.departamento||'SEM DEPTO';
+    if(!byD[d]) byD[d]={count:0,sal:0,prov:0,ben:0,fgts:0};
+    byD[d].count++; byD[d].sal+=n2(f.salario);
+    byD[d].prov+=n2(f.proventos)||n2(f.salario);
+    byD[d].ben+=n2(f.vt)+n2(f.vr)+n2(f.va)+n2(f.am)+n2(f.ao);
+    byD[d].fgts+=n2(f.fgts);
+  });
+  let gtD={count:0,sal:0,prov:0,ben:0,fgts:0};
+  Object.entries(byD).sort().forEach(([d,v])=>{
+    rows3.push([d,v.count,brl(v.sal),brl(v.prov),brl(v.ben),brl(v.fgts),brl(v.sal*(1+encR))]);
+    gtD.count+=v.count;gtD.sal+=v.sal;gtD.prov+=v.prov;gtD.ben+=v.ben;gtD.fgts+=v.fgts;
+  });
+  rows3.push([]);
+  rows3.push(['TOTAL GERAL',gtD.count,brl(gtD.sal),brl(gtD.prov),brl(gtD.ben),brl(gtD.fgts),brl(gtD.sal*(1+encR))]);
+
+  const ws3 = XLSX.utils.aoa_to_sheet(rows3);
+  ws3['!cols']=[{wch:26},{wch:13},{wch:18},{wch:18},{wch:16},{wch:15},{wch:20}];
+  ws3['!merges']=[{s:{r:0,c:0},e:{r:0,c:6}},{s:{r:1,c:0},e:{r:1,c:6}}];
+  const isNumR=ci=>ci>=2;
+  rows3.forEach((row,ri)=>{
+    row.forEach((_,ci)=>{
+      const addr=XLSX.utils.encode_cell({r:ri,c:ci});
+      if(!ws3[addr]) ws3[addr]={t:'s',v:''};
+      const cell=ws3[addr]; const val=cell.v; const isNum=isNumR(ci);
+      if(ri===0) cell.s=EQ.s(true,EQ.TEAL_DK,'FFFFFF','left',14,false,false);
+      else if(ri===1) cell.s=EQ.s(false,EQ.TEAL_LT,EQ.TEAL_DK,'left',9,false,false);
+      else if(ri===3) cell.s=EQ.s(true,EQ.SLATE,'FFFFFF','center',10,true,true);
+      else if(ri===rows3.length-1){
+        cell.s=EQ.s(true,EQ.TOTAL,'FFFFFF',isNum?'right':'left',11,false,true);
+        if(isNum&&val) cell.s.numFmt=EQ.BRL;
+      } else if(ri>3&&row.length>1){
+        const isCusto=ci===6;
+        cell.s=EQ.hair(ri%2===0?EQ.TEAL_XLT:EQ.WHITE,isCusto?EQ.TOTAL:EQ.SLATE_DK,isNum?'right':'left',isCusto,10);
+        if(isNum&&val) cell.s.numFmt=EQ.BRL;
+      }
+    });
+    if(!ws3['!rows']) ws3['!rows']=[];
+    ws3['!rows'][ri]=ri===0?{hpt:28}:ri===1?{hpt:16}:ri===2?{hpt:5}:ri===3?{hpt:24}:ri===rows3.length-1?{hpt:22}:{hpt:18};
+  });
+  XLSX.utils.book_append_sheet(wb, fixCellTypes(ws3), '📊 Resumo Dept.');
+
+  const fname='Funcionarios_'+( empresa?.razao||'todos').replace(/\s+/g,'_').substring(0,20)+'_'+new Date().toISOString().slice(0,10)+'.xlsx';
+  XLSX.writeFile(wb, fname);
+  toast('Excel exportado com '+funcs.length+' funcionários!');
+}
+
+// ═══════════════════════════════════════════════════════
+// EXPORTAR (funções de controle)
+// ═══════════════════════════════════════════════════════
+
+function getFilteredFuncs() {
+  const empId  = document.getElementById('exp-empresa').value;
+  const depto  = document.getElementById('exp-depto').value;
+  const status = document.getElementById('exp-status').value;
+  return DB.funcionarios.filter(f => {
+    if (empId  && f.empresaId   !== empId)  return false;
+    if (depto  && f.departamento !== depto)  return false;
+    if (status && f.situacao     !== status) return false;
+    return true;
+  });
+}
+
+function previewExport() {
+  const funcs  = getFilteredFuncs();
+  const fmt    = document.getElementById('exp-formato').value;
+  const count  = document.getElementById('exp-count');
+  const card   = document.getElementById('card-exp-table');
+  const container = document.getElementById('exp-table-container');
+  const preview   = document.getElementById('exp-preview');
+
+  if (fmt === 'espelho' || fmt === 'anual') {
+    const ano = document.getElementById('exp-ano')?.value || '';
+    const empId = document.getElementById('exp-empresa').value;
+    const folhasFiltradas = (DB.folhas || []).filter(f =>
+      (!empId || f.empresaId === empId) &&
+      (fmt === 'anual' ? (f.competencia||'').startsWith(ano) : true)
+    );
+    count.textContent = folhasFiltradas.length + ' folha(s) disponíveis';
+    card.style.display = '';
+    container.innerHTML = folhasFiltradas.map(f =>
+      '<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:.85rem">' +
+      '<strong>' + (f.competencia||'-') + '</strong> — ' + (f.empresaNome||'-') +
+      ' — ' + (f.funcionarios?.length||0) + ' funcionários</div>'
+    ).join('') || '<p class="text-muted">Nenhuma folha importada ainda.</p>';
+    preview.innerHTML = '<div class="alert alert-info">✅ ' + folhasFiltradas.length + ' folha(s) prontas para exportar.</div>';
+    return;
+  }
+
+  if (!funcs.length) {
+    preview.innerHTML = '<div class="alert alert-warn">⚠️ Nenhum funcionário encontrado com os filtros selecionados.</div>';
+    return;
+  }
+  count.textContent = funcs.length + ' funcionários';
+  card.style.display = '';
+
+  const competencia = document.getElementById('exp-competencia').value || '';
+  const hdrs = ['Departamento','Cargo','Funcionário','Situação','Vínculo','Salário','VR','VA','VT','AM','AO','Proventos','Descontos','Líquido','FGTS','Custo Total'];
+  let html = '<table><thead><tr>' + hdrs.map(h => '<th>' + h + '</th>').join('') + '</tr></thead><tbody>';
+  funcs.forEach(f => {
+    const sal=n2(f.salario), prov=n2(f.proventos)||sal;
+    const enc=n2(sal*(DB.config?.encargos||34.3)/100);
+    html += '<tr>' + [
+      f.departamento||'-', f.cargo||'-', f.nome, f.situacao, f.vinculo,
+      fmtBRL(sal), fmtBRL(f.vr), fmtBRL(f.va), fmtBRL(f.vt), fmtBRL(f.am), fmtBRL(f.ao),
+      fmtBRL(prov), fmtBRL(f.descontos), fmtBRL(f.liquido||Math.max(0,prov-n2(f.descontos))),
+      fmtBRL(f.fgts), fmtBRL(prov+enc)
+    ].map((v,i) => '<td' + (i>=5?' class="td-num"':'') + '>' + (v||'-') + '</td>').join('') + '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+  preview.innerHTML = '<div class="alert alert-success">✅ ' + funcs.length + ' funcionários prontos para exportar.</div>';
+}
+
+function exportarExcel() {
+  const empId      = document.getElementById('exp-empresa').value;
+  const competencia= document.getElementById('exp-competencia').value || '';
+  const formato    = document.getElementById('exp-formato').value;
+  const empresa    = DB.empresas.find(e => e.id === empId);
+  const ano        = document.getElementById('exp-ano')?.value || new Date().getFullYear().toString();
+
+  // ── Relatório Anual ─────────────────────────────────
+  if (formato === 'anual') {
+    const folhasDoAno = (DB.folhas||[]).filter(f =>
+      (!empId || f.empresaId === empId) && (f.competencia||'').startsWith(ano)
+    );
+    if (!folhasDoAno.length) {
+      toast('Nenhuma folha importada para ' + ano + '. Importe os PDFs mensais primeiro.', 'warn');
+      return;
+    }
+    const wb = XLSX.utils.book_new();
+    buildAnualSheet(wb, folhasDoAno, empresa, ano);
+    buildAnualMensalSheet(wb, folhasDoAno, empresa, ano);
+    buildAnualDepartSheet(wb, folhasDoAno, empresa, ano);
+    XLSX.writeFile(wb, 'Relatorio_Anual_' + (empresa?.razao||'todas').replace(/\s+/g,'_').substring(0,20) + '_' + ano + '.xlsx');
+    toast('Relatório Anual ' + ano + ' exportado!');
+    return;
+  }
+
+  // ── Espelho da Folha ────────────────────────────────
+  if (formato === 'espelho') {
+    const folha = (DB.folhas||[]).find(f =>
+      (!empId || f.empresaId === empId) &&
+      (!competencia || f.competencia === competencia)
+    ) || DB.folhas[DB.folhas.length - 1];
+    if (!folha?.funcionarios?.length) {
+      toast('Importe um PDF de folha primeiro para usar o Espelho.', 'warn');
+      return;
+    }
+    const wb  = XLSX.utils.book_new();
+    const emp = DB.empresas.find(e => e.id === folha.empresaId) || empresa;
+    buildEspelhoSheet(wb, folha, emp);
+    buildEspelhoRubricasSheet(wb, folha, emp);
+    buildEspelhoResumoSheet(wb, folha, emp);
+    XLSX.writeFile(wb, 'Espelho_Folha_' + (emp?.razao||'empresa').replace(/\s+/g,'_').substring(0,20) + '_' + (folha.competencia||competencia) + '.xlsx');
+    toast('Espelho exportado!');
+    return;
+  }
+
+  // ── Modelo Gerencial / Resumo ───────────────────────
+  const funcs = getFilteredFuncs();
+  if (!funcs.length) { toast('Nenhum dado para exportar', 'warn'); return; }
+  const wb = XLSX.utils.book_new();
+  buildModeloSheet(wb, funcs, empresa, competencia);
+  buildResumoSheet(wb, funcs, empresa, competencia);
+  XLSX.writeFile(wb, 'Folha_Gerencial_' + (empresa?.razao||'todas').replace(/\s+/g,'_').substring(0,20) + '_' + (competencia||'competencia') + '.xlsx');
+  toast('Planilha gerencial exportada!');
+}
+
+// ═══════════════════════════════════════════════════════
+// ESPELHO DA FOLHA — funções de construção Excel
+// ═══════════════════════════════════════════════════════
+
+function buildEspelhoSheet(wb, folha, empresa) {
+  const cfg = DB.config || {};
+  const encP=(cfg.encargos||34.30)/100, p13P=(cfg.prov13||8.33)/100;
+  const ferP=(cfg.provFerias||8.33)/100, tercoP=(cfg.provUmTerco||2.78)/100;
+  const fgtsP=(cfg.fgtsProv||2.22)/100;
+  const hoje=new Date().toLocaleDateString('pt-BR');
+
+  const rows=[], metas=[];
+  const R=(d,m)=>{rows.push(d);metas.push(m||'data');};
+  const NUM_COLS=new Set([6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28]);
+  const PROV=new Set([7,8,9,10,11,12]),DESCC=new Set([13,14,15,16]),TOTC=new Set([17,18,19]),BENC=new Set([20,21,22,23]),PRVC=new Set([24,25,26,27,28]);
+  const getSecBg=ci=>PROV.has(ci)?EQ.TEAL_DK:DESCC.has(ci)?'B91C1C':TOTC.has(ci)?EQ.SLATE:BENC.has(ci)?EQ.TEAL_MD:PRVC.has(ci)?'4A5568':EQ.SLATE;
+
+  R(['EQUILIBRYM — ESPELHO DA FOLHA DE PAGAMENTO'], 'title');
+  R(['Empresa: '+(empresa?.razao||'')+' | CNPJ: '+(empresa?.cnpj||'')+' | Competência: '+(folha.competencia||'')+' | Emissão: '+hoje+' | Total: '+folha.funcionarios.length+' func.'], 'subtitle');
+  R([], 'space');
+  R(['','','','','','','━━━ PROVENTOS ━━━','','','','','','━━━ DESCONTOS ━━━','','','','━━━ TOTAIS ━━━','','','━━━ BENEFÍCIOS ━━━','','','','━━━ PROVISÕES GERENCIAIS ━━━','','','',''], 'section');
+  R(['Cód.','Nome','CPF','Cargo','Vínculo','Adm.','Sal.\nContratual','H. Extra\n90%','DSR\nExtras','Insalub.\n10%','Sal.\nFamília','Outros\nProv.','INSS','VT\n6%','Adiant.\nSalarial','Outros\nDesc.','PROVENTOS','DESCONTOS','LÍQUIDO','VT\nCompra','VR','VA','AM/AO','Enc.\nPatronal','FGTS\nRecolhido','Prov.\n13º','Prov.\nFérias','Custo\nTotal'], 'header');
+
+  const funcs=folha.funcionarios||[];
+  let GT={sal:0,he:0,dsr:0,ins:0,sfam:0,oprov:0,inss:0,vt6:0,adnt:0,odesc:0,prov:0,desc:0,liq:0,vt:0,vr:0,va:0,am:0,enc:0,fgts:0,p13:0,fer:0,custo:0};
+
+  funcs.forEach((f,fi)=>{
+    const sal=n2(f.salario),prov=n2(f.proventos)||sal,desc=n2(f.descontos),liq=n2(f.liquido)||Math.max(0,prov-desc),fgts=n2(f.fgts);
+    const he=n2(f.he||0),dsr=n2(f.dsr||0),ins=n2(f.insalub||0),sfam=n2(f.salFam||f.sal_fam||0);
+    const inss=n2(f.inss_desc||f.inss||0),adnt=n2(f.adiant||0),vt6=n2(f.vt_desc||0)||(inss>0?n2(sal*0.06):0);
+    const vt=n2(f.vt||0),vr=n2(f.vr||0),va=n2(f.va||0),am=n2((f.am||0)+(f.ao||0));
+    const salBase=Math.max(0,prov-he-dsr-ins-sfam),oprov=Math.max(0,prov-Math.max(salBase,sal)-he-dsr-ins-sfam);
+    const odesc=Math.max(0,desc-inss-vt6-adnt);
+    const enc=n2(sal*encP),p13=n2(sal*p13P),fer=n2(sal*ferP),terco=n2(sal*tercoP),fgtsV=n2(sal*fgtsP);
+    const custo=n2(prov+enc+p13+fer+terco+fgtsV);
+    let bg=fi%2===0?EQ.TEAL_XLT:EQ.WHITE;
+    if(f.vinculo==='Estagiário') bg=EQ.GOLD_LT;
+    if(f.situacao==='Demitido')  bg=EQ.DESC_BG;
+    if(f.vinculo==='Diretor')    bg=EQ.PURPLE_LT;
+    R([f.codigo,f.nome,f.cpf,f.cargo,f.vinculo,f.admissao,brl(sal)||0,
+       brl(salBase)||0,he||null,dsr||null,ins||null,sfam||null,oprov||null,
+       inss||null,vt6||null,adnt||null,odesc||null,
+       brl(prov)||0,brl(desc)||0,brl(liq)||0,
+       vt||null,vr||null,va||null,am||null,
+       brl(enc)||0,brl(fgts)||null,brl(p13)||0,brl(fer)||0,brl(custo)||0
+    ],'row:'+bg);
+    GT.sal+=sal;GT.he+=he;GT.dsr+=dsr;GT.ins+=ins;GT.sfam+=sfam;GT.oprov+=oprov;
+    GT.inss+=inss;GT.vt6+=vt6;GT.adnt+=adnt;GT.odesc+=odesc;
+    GT.prov+=prov;GT.desc+=desc;GT.liq+=liq;GT.vt+=vt;GT.vr+=vr;GT.va+=va;GT.am+=am;
+    GT.enc+=enc;GT.fgts+=fgts;GT.p13+=p13;GT.fer+=fer;GT.custo+=custo;
+  });
+
+  R(['','TOTAL GERAL — '+funcs.length+' FUNCIONÁRIOS','','','','',brl(GT.sal)||0,
+     brl(GT.sal)||0,GT.he||null,GT.dsr||null,GT.ins||null,GT.sfam||null,GT.oprov||null,
+     GT.inss||null,GT.vt6||null,GT.adnt||null,GT.odesc||null,
+     brl(GT.prov)||0,brl(GT.desc)||0,brl(GT.liq)||0,
+     GT.vt||null,GT.vr||null,GT.va||null,GT.am||null,
+     brl(GT.enc)||0,GT.fgts||null,brl(GT.p13)||0,brl(GT.fer)||0,brl(GT.custo)||0
+  ],'grandtotal');
+
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:6},{wch:34},{wch:15},{wch:25},{wch:17},{wch:11},{wch:13},{wch:12},{wch:9},{wch:9},{wch:9},{wch:9},{wch:10},{wch:8},{wch:11},{wch:9},{wch:13},{wch:12},{wch:13},{wch:11},{wch:10},{wch:10},{wch:10},{wch:11},{wch:11},{wch:10},{wch:10},{wch:13}];
+  ws['!rows']=rows.map((_,i)=>{const m=metas[i];return m==='title'?{hpt:30}:m==='subtitle'?{hpt:16}:m==='section'?{hpt:14}:m==='header'?{hpt:32}:m==='grandtotal'?{hpt:22}:m==='space'?{hpt:5}:{hpt:15};});
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:27}},{s:{r:1,c:0},e:{r:1,c:27}},{s:{r:3,c:7},e:{r:3,c:12}},{s:{r:3,c:13},e:{r:3,c:16}},{s:{r:3,c:17},e:{r:3,c:19}},{s:{r:3,c:20},e:{r:3,c:23}},{s:{r:3,c:24},e:{r:3,c:27}}];
+  rows.forEach((_,ri)=>{ const m=metas[ri]; if(m==='grandtotal') ws['!merges'].push({s:{r:ri,c:1},e:{r:ri,c:5}}); });
+
+  rows.forEach((row,ri)=>{
+    const m=metas[ri];
+    if(m==='space') return;
+    row.forEach((_,ci)=>{
+      const addr=XLSX.utils.encode_cell({r:ri,c:ci});
+      if(!ws[addr]) ws[addr]={t:'s',v:''};
+      const cell=ws[addr]; const val=cell.v; const isNum=NUM_COLS.has(ci); const secBg=getSecBg(ci);
+      if(m==='title') cell.s=EQ.s(true,EQ.TEAL_DK,'FFFFFF','left',14,false,false);
+      else if(m==='subtitle') cell.s=EQ.s(false,EQ.TEAL_LT,EQ.TEAL_DK,'left',9,false,false);
+      else if(m==='section') cell.s=EQ.s(true,ci<6?EQ.SLATE:secBg,'FFFFFF','center',8,false,true);
+      else if(m==='header') cell.s=EQ.s(true,ci<6?EQ.SLATE:secBg,'FFFFFF','center',8,true,true);
+      else if(m==='grandtotal'){cell.s=EQ.s(true,EQ.TOTAL,'FFFFFF',isNum?'right':'left',10,false,true);if(isNum&&val)cell.s.numFmt=EQ.BRL;}
+      else if(m&&m.startsWith('row:')){
+        const bg=m.replace('row:','');
+        const isName=ci===1,isLiq=ci===18,isCusto=ci===27;
+        cell.s=EQ.hair(bg,isName?EQ.TEAL_DK:isCusto?EQ.TOTAL:isLiq?EQ.PROV_H:EQ.SLATE_DK,isNum?'right':(ci<=1||ci===4||ci===5?'center':'left'),isName||isCusto||isLiq,8.5);
+        if(isNum&&val) cell.s.numFmt=EQ.BRL;
+      }
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, fixCellTypes(ws), '📄 Espelho da Folha');
+}
+
+function buildEspelhoRubricasSheet(wb, folha, empresa) {
+  const hoje=new Date().toLocaleDateString('pt-BR');
+  const rows=[], metas=[];
+  const R=(d,m)=>{rows.push(d);metas.push(m||'data');};
+
+  R(['EQUILIBRYM — RUBRICAS DETALHADAS POR FUNCIONÁRIO'], 'title');
+  R(['Empresa: '+(empresa?.razao||'')+' | CNPJ: '+(empresa?.cnpj||'')+' | Competência: '+(folha.competencia||'')+' | Emissão: '+hoje], 'subtitle');
+  R([], 'space');
+  R(['FUNCIONÁRIO','CPF','CARGO','VÍNCULO','TIPO','CÓD.','DESCRIÇÃO DA RUBRICA','QTD/HRS','VALOR (R$)'], 'header');
+
+  const funcs=folha.funcionarios||[];
+  funcs.forEach((f,fi)=>{
+    const rubricas=f.rubricas_detalhe&&f.rubricas_detalhe.length?f.rubricas_detalhe:[];
+    const summaryRows=[];
+    if(!rubricas.length){
+      if(f.salario>0) summaryRows.push({tipo:'P',code:'8781',desc:'SALÁRIO',qty:'-',val:f.salario});
+      if(f.he>0)      summaryRows.push({tipo:'P',code:'211', desc:'HORAS EXTRAS 90%',qty:'-',val:f.he});
+      if(f.dsr>0)     summaryRows.push({tipo:'P',code:'250', desc:'REFLEXO EXTRAS DSR',qty:'-',val:f.dsr});
+      if(f.insalub>0) summaryRows.push({tipo:'P',code:'15',  desc:'INSALUBRIDADE 10%',qty:'-',val:f.insalub});
+      if(f.salFam>0)  summaryRows.push({tipo:'P',code:'995', desc:'SALÁRIO FAMÍLIA',qty:'-',val:f.salFam});
+      if((f.inss_desc||0)>0) summaryRows.push({tipo:'D',code:'998',desc:'INSS',qty:'-',val:f.inss_desc});
+      if((f.adiant||0)>0)    summaryRows.push({tipo:'D',code:'981',desc:'ADIANTAMENTO SALARIAL',qty:'-',val:f.adiant});
+      if(f.vt>0) summaryRows.push({tipo:'*',code:'234',desc:'VALOR DE COMPRA VT',qty:'-',val:f.vt});
+      if(f.vr>0) summaryRows.push({tipo:'*',code:'235',desc:'VALOR DE COMPRA VR',qty:'-',val:f.vr});
+      if(f.va>0) summaryRows.push({tipo:'*',code:'239',desc:'VALOR DE COMPRA VA',qty:'-',val:f.va});
+      if(f.am>0) summaryRows.push({tipo:'*',code:'237',desc:'VALOR DE COMPRA AM',qty:'-',val:f.am});
+    }
+    const rowList=rubricas.length?rubricas:summaryRows;
+    if(!rowList.length) return;
+    let bg=fi%2===0?EQ.TEAL_XLT:EQ.WHITE;
+    if(f.vinculo==='Estagiário') bg=EQ.GOLD_LT;
+    rowList.forEach((rub,ri)=>{
+      let tipo,code,desc,qty,val;
+      if(Array.isArray(rub)){[tipo,code,desc,qty,val]=rub;}
+      else{tipo=rub.tipo||rub.type||'P';code=rub.code||'';desc=rub.desc||'';qty=rub.qty||'-';val=rub.val||0;}
+      const tipoBg=tipo==='P'?'ECFDF5':tipo==='D'?'FEF2F2':'EEF2FF';
+      const tipoLabel=tipo==='P'?'PROVENTO':tipo==='D'?'DESCONTO':'INFORMATIVA';
+      R([ri===0?f.nome:'',ri===0?f.cpf:'',ri===0?f.cargo:'',ri===0?f.vinculo:'',tipoLabel,code,desc,qty||'-',val?n2(val):null],'row:'+tipoBg+':'+bg);
+    });
+    R(['','SUBTOTAL: '+f.nome,'','','','','Proventos: '+(f.proventos||0).toLocaleString('pt-BR',{minimumFractionDigits:2,style:'currency',currency:'BRL'})+' | Descontos: '+(f.descontos||0).toLocaleString('pt-BR',{minimumFractionDigits:2,style:'currency',currency:'BRL'})+' | Líquido: '+(f.liquido||0).toLocaleString('pt-BR',{minimumFractionDigits:2,style:'currency',currency:'BRL'}),'',null],'subtotal');
+    R([],'space');
+  });
+
+  const ws2=XLSX.utils.aoa_to_sheet(rows);
+  ws2['!cols']=[{wch:34},{wch:15},{wch:25},{wch:17},{wch:12},{wch:7},{wch:42},{wch:10},{wch:14}];
+  ws2['!rows']=rows.map((_,i)=>{const m=metas[i];return m==='title'?{hpt:26}:m==='subtitle'?{hpt:16}:m==='header'?{hpt:22}:m==='subtotal'?{hpt:15}:m==='space'?{hpt:4}:{hpt:14};});
+  ws2['!merges']=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}}];
+
+  const tipoColors={'PROVENTO':EQ.PROV_H,'DESCONTO':EQ.DESC_H,'INFORMATIVA':EQ.SLATE};
+  rows.forEach((row,ri)=>{
+    const m=metas[ri];
+    row.forEach((_,ci)=>{
+      const addr=XLSX.utils.encode_cell({r:ri,c:ci});
+      if(!ws2[addr]) ws2[addr]={t:'s',v:''};
+      const cell=ws2[addr]; const val=cell.v;
+      if(m==='title') cell.s=EQ.s(true,EQ.TEAL_DK,'FFFFFF','left',14,false,false);
+      else if(m==='subtitle') cell.s=EQ.s(false,EQ.TEAL_LT,EQ.TEAL_DK,'left',9,false,false);
+      else if(m==='header') cell.s=EQ.s(true,EQ.SLATE,'FFFFFF','center',9,true,true);
+      else if(m==='subtotal') cell.s={font:{bold:true,color:{rgb:EQ.TEAL_DK},sz:8,name:'Calibri'},fill:{fgColor:{rgb:'E2EEF0'},patternType:'solid'},alignment:{horizontal:ci===1?'left':'center',vertical:'center'},border:{top:{style:'thin',color:{rgb:'CBD5E0'}},bottom:{style:'thin',color:{rgb:'CBD5E0'}},left:{style:'thin',color:{rgb:'CBD5E0'}},right:{style:'thin',color:{rgb:'CBD5E0'}}}};
+      else if(m&&m.startsWith('row:')){
+        const parts=m.split(':'); const tipoBg=parts[1]; const baseBg=parts[2]||EQ.WHITE;
+        const bg=ci===4?tipoBg:baseBg;
+        const tipoColor=tipoColors[val]||EQ.SLATE_DK;
+        cell.s=EQ.hair(bg,ci===0?EQ.TEAL_DK:ci===4?tipoColor:EQ.SLATE_DK,ci===8?'right':(ci<=3||ci===4?'center':'left'),ci===0||ci===8,8.5);
+        if(ci===8&&val) cell.s.numFmt=EQ.BRL;
+      }
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, fixCellTypes(ws2), '🔍 Rubricas');
+}
+
+function buildEspelhoResumoSheet(wb, folha, empresa) {
+  const cfg=DB.config||{};
+  const encP=(cfg.encargos||34.30)/100,p13P=(cfg.prov13||8.33)/100;
+  const ferP=(cfg.provFerias||8.33)/100,tercoP=(cfg.provUmTerco||2.78)/100;
+  const fgtsP=(cfg.fgtsProv||2.22)/100;
+  const hoje=new Date().toLocaleDateString('pt-BR');
+  const funcs=folha.funcionarios||[];
+
+  const totals={prov:0,desc:0,liq:0,inss:0,fgts:0,vt:0,vr:0,va:0,am:0,enc:0,p13:0,fer:0,terco:0,fgtsV:0,custo:0};
+  const celetistas=[],estagiarios=[],diretores=[];
+  funcs.forEach(f=>{
+    const sal=n2(f.salario),prov=n2(f.proventos)||sal;
+    const enc=n2(sal*encP),p13=n2(sal*p13P),fer=n2(sal*ferP),terco=n2(sal*tercoP),fgtsV=n2(sal*fgtsP);
+    totals.prov+=prov;totals.desc+=n2(f.descontos);totals.liq+=n2(f.liquido)||Math.max(0,prov-n2(f.descontos));
+    totals.inss+=n2(f.inss_desc||0);totals.fgts+=n2(f.fgts);
+    totals.vt+=n2(f.vt);totals.vr+=n2(f.vr);totals.va+=n2(f.va);totals.am+=n2((f.am||0)+(f.ao||0));
+    totals.enc+=enc;totals.p13+=p13;totals.fer+=fer;totals.terco+=terco;totals.fgtsV+=fgtsV;
+    totals.custo+=n2(prov+enc+p13+fer+terco+fgtsV);
+    if(f.vinculo==='Estagiário') estagiarios.push(f);
+    else if(f.vinculo==='Diretor') diretores.push(f);
+    else celetistas.push(f);
+  });
+
+  const rows=[];
+  rows.push(['EQUILIBRYM — RESUMO EXECUTIVO DA FOLHA']);
+  rows.push([`Empresa: ${empresa?.razao||''}  |  CNPJ: ${empresa?.cnpj||''}  |  Competência: ${folha.competencia||''}  |  Emissão: ${hoje}`]);
+  rows.push([]);
+
+  const bloco=(titulo,bg,itens)=>{
+    rows.push([titulo,'']);
+    itens.forEach(([label,val,isNum])=>rows.push([label, isNum?brl(val):val]));
+    rows.push([]);
+    return bg;
+  };
+
+  const startR=rows.length;
+  bloco('QUADRO DE PESSOAL',EQ.SLATE,[
+    ['Total de Funcionários', funcs.length, false],
+    ['Celetistas', celetistas.length, false],
+    ['Estagiários', estagiarios.length, false],
+    ['Diretores/Sócios', diretores.length, false],
+  ]);
+  bloco('FOLHA DO MÊS',EQ.TEAL_DK,[
+    ['Total Proventos', totals.prov, true],
+    ['Total Descontos', totals.desc, true],
+    ['Líquido a Pagar', totals.liq, true],
+    ['INSS (empregado)', totals.inss, true],
+    ['FGTS Recolhido', totals.fgts, true],
+  ]);
+  bloco('BENEFÍCIOS (COMPRA)',EQ.TEAL_MD,[
+    ['Vale Transporte (VT)', totals.vt, true],
+    ['Vale Refeição (VR)', totals.vr, true],
+    ['Vale Alimentação (VA)', totals.va, true],
+    ['Assistência Médica (AM)', totals.am, true],
+    ['Total Benefícios', totals.vt+totals.vr+totals.va+totals.am, true],
+  ]);
+  bloco('PROVISÕES GERENCIAIS','4A5568',[
+    ['Encargos Patronais ('+( cfg.encargos||34.3)+'%)', totals.enc, true],
+    ['Provisão 13º Salário', totals.p13, true],
+    ['Provisão Férias', totals.fer, true],
+    ['Provisão 1/3 Férias', totals.terco, true],
+    ['FGTS s/ Provisões', totals.fgtsV, true],
+    ['CUSTO TOTAL EMPRESA', totals.custo, true],
+  ]);
+
+  const ws3=XLSX.utils.aoa_to_sheet(rows);
+  ws3['!cols']=[{wch:32},{wch:20}];
+  ws3['!merges']=[{s:{r:0,c:0},e:{r:0,c:1}},{s:{r:1,c:0},e:{r:1,c:1}}];
+
+  // Apply styles
+  let secBg=EQ.SLATE, inSec=false;
+  rows.forEach((row,ri)=>{
+    if(!ws3['!rows']) ws3['!rows']=[];
+    ws3['!rows'][ri]=ri===0?{hpt:26}:ri===1?{hpt:16}:ri===2?{hpt:5}:{hpt:18};
+    row.forEach((_,ci)=>{
+      const addr=XLSX.utils.encode_cell({r:ri,c:ci});
+      if(!ws3[addr]) ws3[addr]={t:'s',v:''};
+      const cell=ws3[addr]; const val=cell.v;
+      const isSecHdr=ci===0&&typeof val==='string'&&['QUADRO DE PESSOAL','FOLHA DO MÊS','BENEFÍCIOS (COMPRA)','PROVISÕES GERENCIAIS'].includes(val);
+      const isCusto=ci===0&&typeof val==='string'&&val.includes('CUSTO TOTAL');
+      const isLiq=ci===0&&typeof val==='string'&&val.includes('Líquido');
+
+      if(ri===0) cell.s=EQ.s(true,EQ.TEAL_DK,'FFFFFF','left',14,false,false);
+      else if(ri===1) cell.s=EQ.s(false,EQ.TEAL_LT,EQ.TEAL_DK,'left',9,false,false);
+      else if(ri===2) cell.s={fill:{fgColor:{rgb:EQ.WHITE},patternType:'solid'}};
+      else if(isSecHdr){
+        const bgMap={'QUADRO DE PESSOAL':EQ.SLATE,'FOLHA DO MÊS':EQ.TEAL_DK,'BENEFÍCIOS (COMPRA)':EQ.TEAL_MD,'PROVISÕES GERENCIAIS':'4A5568'};
+        secBg=bgMap[val]||EQ.SLATE;
+        cell.s=EQ.s(true,secBg,'FFFFFF','left',11,false,true);
+        ws3['!rows'][ri]={hpt:22};
+        if(ci===0&&!ws3['!merges'].find(m=>m.s.r===ri)) ws3['!merges'].push({s:{r:ri,c:0},e:{r:ri,c:1}});
+      }
+      else if(!row[0]&&!row[1]){cell.s={fill:{fgColor:{rgb:'F8FAFB'},patternType:'solid'}};ws3['!rows'][ri]={hpt:6};}
+      else{
+        const isVal=ci===1&&typeof val==='number';
+        const boldRow=isCusto||isLiq;
+        const finalBg=isCusto?EQ.TOTAL:isLiq?EQ.PROV_BG:ci%2===0?EQ.SLATE_LT:EQ.WHITE;
+        const finalFg=isCusto?'FFFFFF':isLiq?EQ.PROV_H:EQ.SLATE_DK;
+        cell.s={font:{bold:boldRow,color:{rgb:isVal&&isCusto?'FFFFFF':isVal&&isLiq?EQ.PROV_H:EQ.SLATE_DK},sz:10,name:'Calibri'},fill:{fgColor:{rgb:finalBg},patternType:'solid'},alignment:{horizontal:isVal?'right':'left',vertical:'center'},border:{top:{style:'hair',color:{rgb:'D1DDE6'}},bottom:{style:'hair',color:{rgb:'D1DDE6'}},left:{style:'thin',color:{rgb:'CBD5E0'}},right:{style:'thin',color:{rgb:'CBD5E0'}}}};
+        if(isVal) cell.s.numFmt=EQ.BRL;
+      }
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, fixCellTypes(ws3), '📊 Resumo Executivo');
+}
+
+
+// ═══════════════════════════════════════════════════════
+// MODELO GERENCIAL (3 abas: Folha + Resumo)
+// ═══════════════════════════════════════════════════════
+function buildModeloSheet(wb, funcs, empresa, competencia) {
+  const cfg = DB.config || {};
+  const encP   = (cfg.encargos    || 34.30) / 100;
+  const p13P   = (cfg.prov13      ||  8.33) / 100;
+  const ferP   = (cfg.provFerias  ||  8.33) / 100;
+  const tercoP = (cfg.provUmTerco ||  2.78) / 100;
+  const fgtsP  = (cfg.fgtsProv    ||  2.22) / 100;
+  const hoje   = new Date().toLocaleDateString('pt-BR');
+
+  // Normalizar dept
+  const deptNorm = raw => {
+    if (!raw) return 'SEM DEPTO';
+    const found = DB.departamentos.find(d =>
+      d.nome.toUpperCase() === raw.toUpperCase() ||
+      raw.toUpperCase().includes(d.nome.toUpperCase())
+    );
+    return found ? found.nome : raw;
+  };
+
+  const byDepto = {};
+  funcs.forEach(f => {
+    const d = deptNorm(f.departamento);
+    if (!byDepto[d]) byDepto[d] = [];
+    byDepto[d].push(f);
+  });
+
+  const COLS = 22;
+  const rows = [], metas = [];
+  const R = (data, m) => { rows.push(data); metas.push(m||'data'); };
+
+  R(['EQUILIBRYM — RELATÓRIO DE FOLHA DE PAGAMENTO'], 'title');
+  R([
+    `Empresa: ${empresa?.razao||'TODAS'}`, '','',
+    `CNPJ: ${empresa?.cnpj||''}`, '','',
+    `Competência: ${competencia}`, '','',
+    `Emissão: ${hoje}`, '','',
+    `Total: ${funcs.length} funcionários`
+  ], 'subtitle');
+  R([], 'space');
+
+  // Seções
+  R(['','','','','','',
+     '━━ PROVENTOS ━━','','','','',
+     '━━ DESCONTOS ━━','','',
+     '━━ TOTAIS ━━','','',
+     '━━ BENEFÍCIOS ━━','','',
+     '━━ PROVISÕES ━━',''
+  ], 'section');
+
+  R([
+    'DEPTO','CARGO','FUNCIONÁRIO','CPF','SITUAÇÃO','VÍNCULO',
+    'SALÁRIO\nCONTRATUAL','VR','VA','VT','AM / AO','PREMIAÇÃO',
+    'INSS\nDESCONTO','VT 6%','ADIANT.',
+    'PROVENTOS','DESCONTOS','LÍQUIDO',
+    'FGTS','BENEFÍCIOS','ENC.\nPATRONAL','CUSTO\nTOTAL'
+  ], 'header');
+
+  const GT = {sal:0,vr:0,va:0,vt:0,am:0,prov:0,inss:0,vt6:0,adnt:0,desc:0,liq:0,fgts:0,ben:0,enc:0,custo:0};
+
+  Object.entries(byDepto).sort().forEach(([depto, df]) => {
+    // Dept separator
+    const dRow = [`▸  ${depto.toUpperCase()}  —  ${df.length} funcionário(s)`];
+    for (let i=1;i<COLS;i++) dRow.push('');
+    R(dRow, 'dept');
+
+    const DT = {sal:0,vr:0,va:0,vt:0,am:0,prov:0,inss:0,vt6:0,adnt:0,desc:0,liq:0,fgts:0,ben:0,enc:0,custo:0};
+
+    df.forEach((f, fi) => {
+      const sal   = n2(f.salario);
+      const prov  = n2(f.proventos) || sal;
+      const desc  = n2(f.descontos);
+      const liq   = n2(f.liquido) || Math.max(0, prov-desc);
+      const fgts  = n2(f.fgts);
+      const vr    = n2(f.vr); const va=n2(f.va); const vt=n2(f.vt); const am=n2((f.am||0)+(f.ao||0));
+      const ben   = vr+va+vt+am;
+      const inss  = n2(f.inss_desc||f.inss||0);
+      const adnt  = n2(f.adiant||0);
+      const vt6   = n2(f.vt_desc||0) || (inss>0 ? n2(sal*0.06) : 0);
+      const enc   = n2(sal*encP);
+      const p13   = n2(sal*p13P);
+      const fer   = n2(sal*ferP);
+      const terco = n2(sal*tercoP);
+      const fgtsV = n2(sal*fgtsP);
+      const custo = n2(prov+enc+p13+fer+terco+fgtsV);
+
+      R([
+        depto, f.cargo||'-', f.nome, f.cpf||'-', f.situacao, f.vinculo,
+        brl(sal), brl(vr)||null, brl(va)||null, brl(vt)||null, brl(am)||null, null,
+        brl(inss)||null, brl(vt6)||null, brl(adnt)||null,
+        brl(prov), brl(desc), brl(liq),
+        brl(fgts)||null, brl(ben)||null, brl(enc), brl(custo)
+      ], 'row:'+(fi%2===0?EQ.TEAL_XLT:EQ.WHITE)+(f.vinculo==='Estagiário'?':EST':f.vinculo==='Diretor'?':DIR':f.situacao==='Demitido'?':DEM':''));
+
+      DT.sal+=sal;DT.vr+=vr;DT.va+=va;DT.vt+=vt;DT.am+=am;
+      DT.prov+=prov;DT.inss+=inss;DT.vt6+=vt6;DT.adnt+=adnt;DT.desc+=desc;DT.liq+=liq;
+      DT.fgts+=fgts;DT.ben+=ben;DT.enc+=enc;DT.custo+=custo;
+    });
+
+    // Subtotal depto
+    R([
+      '','SUBTOTAL '+depto,'','','','',
+      brl(DT.sal), brl(DT.vr)||null, brl(DT.va)||null, brl(DT.vt)||null, brl(DT.am)||null, null,
+      brl(DT.inss)||null, brl(DT.vt6)||null, brl(DT.adnt)||null,
+      brl(DT.prov), brl(DT.desc), brl(DT.liq),
+      brl(DT.fgts)||null, brl(DT.ben)||null, brl(DT.enc), brl(DT.custo)
+    ], 'subtotal');
+    R([], 'space');
+
+    Object.keys(GT).forEach(k => GT[k] += DT[k]);
+  });
+
+  R([], 'space');
+  R([
+    '','TOTAL GERAL — '+funcs.length+' FUNCIONÁRIOS','','','','',
+    brl(GT.sal), brl(GT.vr)||null, brl(GT.va)||null, brl(GT.vt)||null, brl(GT.am)||null, null,
+    brl(GT.inss)||null, brl(GT.vt6)||null, brl(GT.adnt)||null,
+    brl(GT.prov), brl(GT.desc), brl(GT.liq),
+    brl(GT.fgts)||null, brl(GT.ben)||null, brl(GT.enc), brl(GT.custo)
+  ], 'grandtotal');
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [
+    {wch:18},{wch:26},{wch:34},{wch:15},{wch:12},{wch:18},
+    {wch:13},{wch:11},{wch:11},{wch:11},{wch:11},{wch:10},
+    {wch:11},{wch:10},{wch:11},
+    {wch:13},{wch:12},{wch:13},
+    {wch:11},{wch:12},{wch:12},{wch:13}
+  ];
+  ws['!rows'] = rows.map((_,i)=>{
+    const m=metas[i];
+    return m==='title'?{hpt:30}:m==='subtitle'?{hpt:16}:m==='section'?{hpt:14}:
+           m==='header'?{hpt:32}:m==='dept'?{hpt:18}:m==='subtotal'?{hpt:18}:
+           m==='grandtotal'?{hpt:22}:m==='space'?{hpt:5}:{hpt:15};
+  });
+
+  // Merges
+  const merges = [
+    {s:{r:0,c:0},e:{r:0,c:21}},
+    {s:{r:1,c:0},e:{r:1,c:2}},{s:{r:1,c:3},e:{r:1,c:5}},
+    {s:{r:1,c:6},e:{r:1,c:9}},{s:{r:1,c:10},e:{r:1,c:12}},
+    {s:{r:1,c:13},e:{r:1,c:21}},
+    {s:{r:3,c:6},e:{r:3,c:11}},
+    {s:{r:3,c:12},e:{r:3,c:14}},
+    {s:{r:3,c:15},e:{r:3,c:17}},
+    {s:{r:3,c:18},e:{r:3,c:19}},
+    {s:{r:3,c:20},e:{r:3,c:21}},
+  ];
+  rows.forEach((row,ri)=>{
+    const m=metas[ri];
+    if (m==='dept'||m==='grandtotal') merges.push({s:{r:ri,c:0},e:{r:ri,c:21}});
+    if (m==='subtotal') merges.push({s:{r:ri,c:0},e:{r:ri,c:5}});
+  });
+  ws['!merges'] = merges;
+
+  // Seções de colunas
+  const PROV  = new Set([6,7,8,9,10,11]);
+  const DESCC = new Set([12,13,14]);
+  const TOTC  = new Set([15,16,17]);
+  const BENC  = new Set([18,19]);
+  const PROVC = new Set([20,21]);
+
+  const getSecBg = ci =>
+    PROV.has(ci)?EQ.TEAL_DK:DESCC.has(ci)?'B91C1C':TOTC.has(ci)?EQ.SLATE:
+    BENC.has(ci)?EQ.TEAL_MD:PROVC.has(ci)?'4A5568':EQ.SLATE;
+
+  rows.forEach((row, ri) => {
+    const m = metas[ri];
+    if (m==='space') return;
+    row.forEach((_, ci) => {
+      const addr = XLSX.utils.encode_cell({r:ri,c:ci});
+      if (!ws[addr]) ws[addr]={t:'s',v:''};
+      const cell=ws[addr]; const val=cell.v;
+      const isNum=ci>=6; const secBg=getSecBg(ci);
+
+      if (m==='title') {
+        cell.s=EQ.s(true,EQ.TEAL_DK,'FFFFFF','left',15,false,false);
+      } else if (m==='subtitle') {
+        cell.s=EQ.s(false,EQ.TEAL_LT,EQ.TEAL_DK,'left',9,false,false);
+      } else if (m==='section') {
+        cell.s=EQ.s(true,secBg,'FFFFFF','center',8,false,true);
+      } else if (m==='header') {
+        cell.s=EQ.s(true,secBg,'FFFFFF','center',8,true,true);
+      } else if (m==='dept') {
+        cell.s=EQ.s(true,EQ.TEAL_MD,'FFFFFF','left',10,false,false);
+      } else if (m==='subtotal') {
+        cell.s=EQ.s(true,EQ.SLATE,'FFFFFF',isNum?'right':'left',8.5,false,true);
+        if (isNum&&val) cell.s.numFmt=EQ.BRL;
+      } else if (m==='grandtotal') {
+        cell.s=EQ.s(true,EQ.TOTAL,'FFFFFF',isNum?'right':'left',10,false,true);
+        if (isNum&&val) cell.s.numFmt=EQ.BRL;
+      } else if (m && m.startsWith('row:')) {
+        const parts=m.split(':');
+        let bg=parts[1]||EQ.WHITE;
+        const flag=parts[2]||'';
+        if (flag==='EST') bg='FFFBEB';
+        else if (flag==='DIR') bg='F5F3FF';
+        else if (flag==='DEM') bg='FFF0F0';
+        const isName=ci===2; const isLiq=ci===17; const isCusto=ci===21; const isTot=TOTC.has(ci);
+        cell.s=EQ.hair(bg,
+          isName?EQ.TEAL_DK:isCusto?EQ.TOTAL:isLiq?EQ.PROV_H:EQ.SLATE_DK,
+          isNum?'right':(ci<=1?'center':'left'),
+          isName||isCusto||isLiq, 8.5);
+        if (isNum&&val) cell.s.numFmt=EQ.BRL;
+      }
+    });
+  });
+
+  ws['!freeze'] = {xSplit:3, ySplit:5};
+  XLSX.utils.book_append_sheet(wb, fixCellTypes(ws), '📄 Folha Gerencial');
+}
+
+function buildResumoSheet(wb, funcs, empresa, competencia) {
+  const encR = (DB.config?.encargos||34.3)/100;
+  const p13R = (DB.config?.prov13||8.33)/100;
+  const ferR = (DB.config?.provFerias||8.33)/100;
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const COLS = 8;
+
+  const byD = {};
+  funcs.forEach(f => {
+    const d = f.departamento||'SEM DEPTO';
+    if (!byD[d]) byD[d]={count:0,sal:0,prov:0,ben:0,fgts:0,liq:0};
+    byD[d].count++;
+    byD[d].sal  +=n2(f.salario);
+    byD[d].prov +=(n2(f.proventos)||n2(f.salario));
+    byD[d].ben  +=n2(f.vt)+n2(f.vr)+n2(f.va)+n2(f.am)+n2(f.ao);
+    byD[d].fgts +=n2(f.fgts);
+    byD[d].liq  +=(n2(f.liquido)||Math.max(0,n2(f.proventos)-n2(f.descontos)));
+  });
+
+  const rows=[], metas=[];
+  const R=(d,m)=>{rows.push(d);metas.push(m||'data');};
+
+  R(['EQUILIBRYM — RESUMO EXECUTIVO POR DEPARTAMENTO'], 'title');
+  R([`Empresa: ${empresa?.razao||'TODAS'}  |  Competência: ${competencia}  |  Emissão: ${hoje}`], 'subtitle');
+  R([], 'space');
+  R(['DEPARTAMENTO','QTD.\nFUNC.','SALÁRIOS\nTOTAIS','PROVENTOS','LÍQUIDO\nA PAGAR','BENEFÍCIOS','FGTS\nRECOLHIDO','CUSTO C/\nENCARGOS'], 'header');
+
+  let gt={count:0,sal:0,prov:0,ben:0,fgts:0,liq:0};
+  Object.entries(byD).sort().forEach(([d,v],i)=>{
+    const custo=v.sal*(1+encR)+v.sal*p13R+v.sal*ferR;
+    R([d,v.count,brl(v.sal),brl(v.prov),brl(v.liq),brl(v.ben),brl(v.fgts),brl(custo)],i%2===0?'even':'odd');
+    gt.count+=v.count;gt.sal+=v.sal;gt.prov+=v.prov;gt.ben+=v.ben;gt.fgts+=v.fgts;gt.liq+=v.liq;
+  });
+  R([],  'space');
+  R(['TOTAL GERAL',gt.count,brl(gt.sal),brl(gt.prov),brl(gt.liq),brl(gt.ben),brl(gt.fgts),brl(gt.sal*(1+encR)+gt.sal*p13R+gt.sal*ferR)], 'grandtotal');
+
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:26},{wch:8},{wch:16},{wch:16},{wch:14},{wch:14},{wch:13},{wch:18}];
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}}];
+  const isN=ci=>ci>=2;
+  rows.forEach((row,ri)=>{
+    row.forEach((_,ci)=>{
+      const addr=XLSX.utils.encode_cell({r:ri,c:ci});
+      if(!ws[addr]) ws[addr]={t:'s',v:''};
+      const cell=ws[addr]; const val=cell.v; const m=metas[ri]; const isNum=isN(ci);
+      if (m==='title') cell.s=EQ.s(true,EQ.TEAL_DK,'FFFFFF','left',14,false,false);
+      else if (m==='subtitle') cell.s=EQ.s(false,EQ.TEAL_LT,EQ.TEAL_DK,'left',9,false,false);
+      else if (m==='header') cell.s=EQ.s(true,EQ.SLATE,'FFFFFF','center',9,true,true);
+      else if (m==='grandtotal') {
+        cell.s=EQ.s(true,EQ.TOTAL,'FFFFFF',isNum?'right':'left',11,false,true);
+        if (isNum&&val) cell.s.numFmt=EQ.BRL;
+      } else if (m==='even'||m==='odd') {
+        const isCusto=ci===7;
+        cell.s=EQ.hair(m==='even'?EQ.TEAL_XLT:EQ.WHITE,isCusto?EQ.TOTAL:EQ.SLATE_DK,isNum?'right':(ci===0?'left':'center'),isCusto,10);
+        if (isNum&&val) cell.s.numFmt=EQ.BRL;
+      }
+    });
+    if(!ws['!rows']) ws['!rows']=[];
+    ws['!rows'][ri]=metas[ri]==='title'?{hpt:28}:metas[ri]==='subtitle'?{hpt:16}:metas[ri]==='space'?{hpt:5}:metas[ri]==='header'?{hpt:26}:metas[ri]==='grandtotal'?{hpt:22}:{hpt:18};
+  });
+  XLSX.utils.book_append_sheet(wb, fixCellTypes(ws), '📊 Resumo Executivo');
+}
+
+
+
+
+// ═══════════════════════════════════════════════════════
+// RELATÓRIO ANUAL DE CUSTOS
+// ═══════════════════════════════════════════════════════
+
+function buildAnualSheet(wb, folhas, empresa, ano) {
+  // ── Cores ──────────────────────────────────────────────
+  const C = {
+    TEAL_DK:'2C7A72', TEAL_MD:'3D9E96', TEAL_LT:'E8F5F4', TEAL_XLT:'F4FAFA',
+    SLATE:'4A5A72', SLATE_LT:'EEF1F5', WHITE:'FFFFFF', TEXT:'2D3748',
+    TOTAL:'1A4A45', GOLD:'B7791F', RED_LT:'FFF0F0', YELLOW_LT:'FFFBEB',
+    PROV:'D1FAE5', DESC:'FEE2E2', BEN:'DBEAFE', PROV_H:'065F46', DESC_H:'991B1B',
+    BEN_H:'1E40AF', PROV_BG:'ECFDF5', DESC_BG:'FEF2F2'
+  };
+
+  const n = v => Math.round((parseFloat(v)||0)*100)/100;
+  const BRL = v => v ? n(v) : null;
+
+  const cfg = DB.config || {};
+  const encP   = (cfg.encargos    || 34.30) / 100;
+  const p13P   = (cfg.prov13      ||  8.33) / 100;
+  const ferP   = (cfg.provFerias  ||  8.33) / 100;
+  const tercoP = (cfg.provUmTerco ||  2.78) / 100;
+  const fgtsP  = (cfg.fgtsProv    ||  2.22) / 100;
+
+  // Meses disponíveis ordenados
+  const meses = folhas
+    .map(f => f.competencia)
+    .filter(Boolean)
+    .sort();
+  const mesesLabels = meses.map(m => {
+    const [y, mo] = m.split('-');
+    const nomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return nomes[(parseInt(mo)||1)-1] + '/' + y;
+  });
+
+  // Consolidar todos os funcionários únicos por CPF/nome
+  const funcMap = {};
+  folhas.forEach(folha => {
+    (folha.funcionarios || []).forEach(f => {
+      const key = f.cpf || f.nome;
+      if (!funcMap[key]) {
+        funcMap[key] = {
+          nome: f.nome, cpf: f.cpf, cargo: f.cargo,
+          vinculo: f.vinculo, departamento: f.departamento,
+          meses: {}
+        };
+      }
+      funcMap[key].meses[folha.competencia] = f;
+      // Atualizar cargo/dept com o mais recente
+      funcMap[key].cargo = f.cargo;
+      funcMap[key].departamento = f.departamento;
+      funcMap[key].vinculo = f.vinculo;
+    });
+  });
+
+  const allFuncs = Object.values(funcMap).sort((a,b) => {
+    const da = a.departamento || '';
+    const db2 = b.departamento || '';
+    return da.localeCompare(db2) || a.nome.localeCompare(b.nome);
+  });
+
+  // ── Build rows ─────────────────────────────────────────
+  const rows = [];
+  const meta = []; // {type, bg, merges}
+
+  const R = (data, type, bg) => { rows.push(data); meta.push({type, bg}); };
+
+  // ── Título ─────────────────────────────────────────────
+  R(['EQUILIBRYM — RELATÓRIO ANUAL DE CUSTOS DE FOLHA DE PAGAMENTO ' + ano], 'title', C.TEAL_DK);
+  R([
+    'Empresa: ' + (empresa?.razao || 'TODAS EMPRESAS'),
+    '', '', '',
+    'CNPJ: ' + (empresa?.cnpj || ''),
+    '', '', '',
+    'Ano: ' + ano,
+    '', '',
+    'Meses importados: ' + meses.length + '/12',
+    '', '',
+    'Gerado em: ' + new Date().toLocaleDateString('pt-BR'),
+  ], 'subtitle', C.TEAL_LT);
+  R([], 'space');
+
+  // ── Cabeçalho fixo + colunas por mês ──────────────────
+  // Colunas fixas: [Nome, CPF, Cargo, Vínculo, Dept] = 5 cols
+  // Por mês: [Sal, Proventos, Descontos, Liquido, FGTS, VT, VR, VA, AM, Enc, CustoTotal] = 11 cols
+  // + Totais anuais: mesmos 11 campos = 11 cols
+  // Total cols = 5 + (meses.length * 11) + 11
+
+  const FIXED = 5;
+  const PER_MONTH = 7; // Sal, Proventos, Descontos, Liquido, FGTS, Benefícios, CustoTotal
+  const ANNUAL = 7;    // mesmos
+
+  // Seção labels
+  const sectionRow = new Array(FIXED).fill('');
+  mesesLabels.forEach(ml => {
+    sectionRow.push(ml);
+    for (let i = 1; i < PER_MONTH; i++) sectionRow.push('');
+  });
+  sectionRow.push('TOTAL ANUAL ' + ano);
+  for (let i = 1; i < ANNUAL; i++) sectionRow.push('');
+  R(sectionRow, 'section');
+
+  // Sub-headers
+  const subCols = ['Sal.Contratual','Proventos','Descontos','Líquido','FGTS','Benefícios','Custo Total'];
+  const headerRow = ['NOME','CPF','CARGO','VÍNCULO','DEPARTAMENTO'];
+  meses.forEach(() => subCols.forEach(c => headerRow.push(c)));
+  subCols.forEach(c => headerRow.push(c));
+  R(headerRow, 'header');
+
+  // ── Dados ──────────────────────────────────────────────
+  // Grand totals acumuladores
+  const GT = { sal:0, prov:0, desc:0, liq:0, fgts:0, ben:0, custo:0 };
+  const GTm = meses.map(() => ({ sal:0, prov:0, desc:0, liq:0, fgts:0, ben:0, custo:0 }));
+
+  // Agrupar por departamento
+  const depts = [...new Set(allFuncs.map(f => f.departamento || 'SEM DEPTO'))];
+
+  depts.forEach(dept => {
+    const dFuncs = allFuncs.filter(f => (f.departamento||'SEM DEPTO') === dept);
+
+    // Dept header
+    const dRow = [dept.toUpperCase() + ' — ' + dFuncs.length + ' funcionário(s)'];
+    for (let i = 1; i < headerRow.length; i++) dRow.push('');
+    R(dRow, 'dept', C.TEAL_MD);
+
+    // Subtotais do departamento
+    const DT = { sal:0, prov:0, desc:0, liq:0, fgts:0, ben:0, custo:0 };
+    const DTm = meses.map(() => ({ sal:0, prov:0, desc:0, liq:0, fgts:0, ben:0, custo:0 }));
+
+    dFuncs.forEach((func, fi) => {
+      const rowBg = fi%2===0 ? C.TEAL_XLT : C.WHITE;
+      const row = [func.nome, func.cpf||'-', func.cargo||'-', func.vinculo||'-', dept];
+
+      let totSal=0, totProv=0, totDesc=0, totLiq=0, totFgts=0, totBen=0, totCusto=0;
+
+      meses.forEach((mes, mi) => {
+        const fd = func.meses[mes];
+        if (fd) {
+          const sal   = n(fd.salario);
+          const prov  = n(fd.proventos) || sal;
+          const desc  = n(fd.descontos);
+          const liq   = n(fd.liquido) || Math.max(0, prov - desc);
+          const fgts  = n(fd.fgts);
+          const ben   = n((fd.vt||0)+(fd.vr||0)+(fd.va||0)+(fd.am||0)+(fd.ao||0));
+          const enc   = n(sal * encP);
+          const p13   = n(sal * p13P);
+          const fer   = n(sal * ferP);
+          const terco = n(sal * tercoP);
+          const fgtsP2= n(sal * fgtsP);
+          const custo = n(prov + enc + p13 + fer + terco + fgtsP2);
+
+          row.push(BRL(sal), BRL(prov), BRL(desc), BRL(liq), BRL(fgts), BRL(ben), BRL(custo));
+
+          totSal+=sal; totProv+=prov; totDesc+=desc; totLiq+=liq;
+          totFgts+=fgts; totBen+=ben; totCusto+=custo;
+
+          DTm[mi].sal+=sal; DTm[mi].prov+=prov; DTm[mi].desc+=desc;
+          DTm[mi].liq+=liq; DTm[mi].fgts+=fgts; DTm[mi].ben+=ben; DTm[mi].custo+=custo;
+        } else {
+          // Mês sem dados
+          for (let i = 0; i < PER_MONTH; i++) row.push(null);
+        }
+      });
+
+      // Totais anuais do funcionário
+      row.push(BRL(totSal), BRL(totProv), BRL(totDesc), BRL(totLiq), BRL(totFgts), BRL(totBen), BRL(totCusto));
+      R(row, 'data', rowBg);
+
+      DT.sal+=totSal; DT.prov+=totProv; DT.desc+=totDesc; DT.liq+=totLiq;
+      DT.fgts+=totFgts; DT.ben+=totBen; DT.custo+=totCusto;
+    });
+
+    // Subtotal departamento
+    const stRow = ['', 'SUBTOTAL ' + dept, '', '', ''];
+    DTm.forEach(m => {
+      stRow.push(BRL(m.sal),BRL(m.prov),BRL(m.desc),BRL(m.liq),BRL(m.fgts),BRL(m.ben),BRL(m.custo));
+    });
+    stRow.push(BRL(DT.sal),BRL(DT.prov),BRL(DT.desc),BRL(DT.liq),BRL(DT.fgts),BRL(DT.ben),BRL(DT.custo));
+    R(stRow, 'subtotal', C.SLATE);
+    R([], 'space');
+
+    // Acumula no GT
+    GT.sal+=DT.sal; GT.prov+=DT.prov; GT.desc+=DT.desc; GT.liq+=DT.liq;
+    GT.fgts+=DT.fgts; GT.ben+=DT.ben; GT.custo+=DT.custo;
+    meses.forEach((_, mi) => {
+      GTm[mi].sal+=DTm[mi].sal; GTm[mi].prov+=DTm[mi].prov; GTm[mi].desc+=DTm[mi].desc;
+      GTm[mi].liq+=DTm[mi].liq; GTm[mi].fgts+=DTm[mi].fgts; GTm[mi].ben+=DTm[mi].ben; GTm[mi].custo+=DTm[mi].custo;
+    });
+  });
+
+  // ── Total Geral ─────────────────────────────────────────
+  R([], 'space');
+  const gtRow = ['', 'TOTAL GERAL ' + ano + ' — ' + allFuncs.length + ' FUNCIONÁRIOS', '', '', ''];
+  GTm.forEach(m => {
+    gtRow.push(BRL(m.sal),BRL(m.prov),BRL(m.desc),BRL(m.liq),BRL(m.fgts),BRL(m.ben),BRL(m.custo));
+  });
+  gtRow.push(BRL(GT.sal),BRL(GT.prov),BRL(GT.desc),BRL(GT.liq),BRL(GT.fgts),BRL(GT.ben),BRL(GT.custo));
+  R(gtRow, 'grandtotal', C.TOTAL);
+
+  // ── Create worksheet ────────────────────────────────────
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Column widths
+  const cols = [
+    {wch:36},{wch:15},{wch:28},{wch:18},{wch:20}
+  ];
+  meses.forEach(() => {
+    [12,12,11,12,10,11,13].forEach(w => cols.push({wch:w}));
+  });
+  [13,13,12,13,11,12,14].forEach(w => cols.push({wch:w}));
+  ws['!cols'] = cols;
+
+  // Row heights
+  ws['!rows'] = rows.map((_,i) => {
+    const t = meta[i].type;
+    if (t==='title') return {hpt:28};
+    if (t==='subtitle') return {hpt:16};
+    if (t==='section') return {hpt:18};
+    if (t==='header') return {hpt:28};
+    if (t==='dept') return {hpt:18};
+    if (t==='subtotal') return {hpt:18};
+    if (t==='grandtotal') return {hpt:22};
+    if (t==='space') return {hpt:5};
+    return {hpt:15};
+  });
+
+  // Merges
+  const totalCols = FIXED + meses.length * PER_MONTH + ANNUAL;
+  const merges = [
+    {s:{r:0,c:0}, e:{r:0,c:totalCols-1}},
+    {s:{r:1,c:0}, e:{r:1,c:3}},
+    {s:{r:1,c:4}, e:{r:1,c:7}},
+    {s:{r:1,c:8}, e:{r:1,c:10}},
+    {s:{r:1,c:11}, e:{r:1,c:13}},
+    {s:{r:1,c:14}, e:{r:1,c:totalCols-1}},
+  ];
+  // Merge month section labels
+  meses.forEach((_, mi) => {
+    const c = FIXED + mi * PER_MONTH;
+    merges.push({s:{r:3,c}, e:{r:3,c:c+PER_MONTH-1}});
+  });
+  // Merge total anual section
+  const totC = FIXED + meses.length * PER_MONTH;
+  merges.push({s:{r:3,c:totC}, e:{r:3,c:totC+ANNUAL-1}});
+
+  // Merge dept rows and grandtotal name
+  rows.forEach((_, ri) => {
+    if (meta[ri].type === 'dept' || meta[ri].type === 'grandtotal') {
+      merges.push({s:{r:ri,c:0}, e:{r:ri,c:totalCols-1}});
+    }
+    if (meta[ri].type === 'subtotal') {
+      merges.push({s:{r:ri,c:1}, e:{r:ri,c:4}});
+    }
+  });
+  ws['!merges'] = merges;
+
+  // ── Apply styles ────────────────────────────────────────
+  const MONTH_PROV_COL  = (mi, sub) => FIXED + mi * PER_MONTH + sub; // sub=0..6
+  const ANNUAL_COL      = (sub) => FIXED + meses.length * PER_MONTH + sub;
+  const isNumCol = ci => ci >= FIXED;
+  const isProvCol = ci => {
+    if (ci < FIXED) return false;
+    const rel = (ci - FIXED) % PER_MONTH;
+    return rel === 1; // Proventos
+  };
+  const isDescCol = ci => {
+    if (ci < FIXED) return false;
+    const rel = (ci - FIXED) % PER_MONTH;
+    return rel === 2; // Descontos
+  };
+  const isLiqCol = ci => {
+    if (ci < FIXED) return false;
+    const rel = (ci - FIXED) % PER_MONTH;
+    return rel === 3; // Líquido
+  };
+  const isCustoCol = ci => {
+    if (ci < FIXED) return false;
+    const rel = (ci - FIXED) % PER_MONTH;
+    return rel === 6; // CustoTotal
+  };
+  const isAnualBlock = ci => ci >= FIXED + meses.length * PER_MONTH;
+  const isAltMonth = ci => {
+    if (ci < FIXED) return false;
+    const mi = Math.floor((ci - FIXED) / PER_MONTH);
+    return mi % 2 === 1;
+  };
+
+  rows.forEach((row, ri) => {
+    const {type, bg} = meta[ri];
+    if (type === 'space') return;
+
+    row.forEach((_, ci) => {
+      const addr = XLSX.utils.encode_cell({r:ri, c:ci});
+      if (!ws[addr]) ws[addr] = {t:'s', v:''};
+      const cell = ws[addr];
+      const val = cell.v;
+      const isNum = isNumCol(ci);
+      const isAnual = isAnualBlock(ci);
+
+      const brd = (style, color) => ({top:{style,color:{rgb:color}},bottom:{style,color:{rgb:color}},left:{style,color:{rgb:color}},right:{style,color:{rgb:color}}});
+
+      if (type === 'title') {
+        cell.s = {font:{bold:true,color:{rgb:'FFFFFF'},sz:14,name:'Calibri'},
+          fill:{fgColor:{rgb:C.TEAL_DK},patternType:'solid'},
+          alignment:{horizontal:'left',vertical:'center'}};
+      } else if (type === 'subtitle') {
+        cell.s = {font:{color:{rgb:C.TEAL_DK},sz:9,bold:ci===0,name:'Calibri'},
+          fill:{fgColor:{rgb:C.TEAL_LT},patternType:'solid'},
+          alignment:{horizontal:'left',vertical:'center'}};
+      } else if (type === 'section') {
+        const secBg = ci < FIXED ? C.SLATE : isAnual ? C.TOTAL : (isAltMonth(ci) ? '1E5A52' : C.TEAL_DK);
+        cell.s = {font:{bold:true,color:{rgb:'FFFFFF'},sz:9,name:'Calibri'},
+          fill:{fgColor:{rgb:secBg},patternType:'solid'},
+          alignment:{horizontal:'center',vertical:'center'},
+          border:brd('thin','1A3A38')};
+      } else if (type === 'header') {
+        const hBg = ci < FIXED ? C.SLATE :
+          isAnual ? '2D3B4E' :
+          (isAltMonth(ci) ? '1E5A52' : C.TEAL_DK);
+        const fontColor = 'FFFFFF';
+        cell.s = {font:{bold:true,color:{rgb:fontColor},sz:8,name:'Calibri'},
+          fill:{fgColor:{rgb:hBg},patternType:'solid'},
+          alignment:{horizontal:'center',vertical:'center',wrapText:true},
+          border:brd('thin','CBD5E0')};
+      } else if (type === 'dept') {
+        cell.s = {font:{bold:true,color:{rgb:'FFFFFF'},sz:10,name:'Calibri'},
+          fill:{fgColor:{rgb:C.TEAL_MD},patternType:'solid'},
+          alignment:{horizontal:'left',vertical:'center'}};
+      } else if (type === 'subtotal') {
+        const stBg = isAnual ? C.TOTAL : C.SLATE;
+        cell.s = {font:{bold:true,color:{rgb:'FFFFFF'},sz:8.5,name:'Calibri'},
+          fill:{fgColor:{rgb:stBg},patternType:'solid'},
+          alignment:{horizontal:isNum?'right':'left',vertical:'center'},
+          border:brd('thin','4A5A72')};
+        if (isNum && val) cell.s.numFmt = 'R$ #,##0.00';
+      } else if (type === 'grandtotal') {
+        cell.s = {font:{bold:true,color:{rgb:'FFFFFF'},sz:10,name:'Calibri'},
+          fill:{fgColor:{rgb:C.TOTAL},patternType:'solid'},
+          alignment:{horizontal:isNum?'right':'left',vertical:'center'},
+          border:brd('medium',C.TOTAL)};
+        if (isNum && val) cell.s.numFmt = 'R$ #,##0.00';
+      } else if (type === 'data') {
+        const altBg = isAltMonth(ci) ? (bg==='FFFFFF'?'F0F7F6':bg==='F4FAFA'?'E0F0EE':bg) : bg;
+        const finalBg = isAnual ? (bg==='FFFFFF'?'F0F4FA':bg==='F4FAFA'?'E8EFF8':bg) : altBg;
+        const isName = ci === 0;
+        const custo  = isCustoCol(ci);
+        const liq    = isLiqCol(ci);
+        cell.s = {
+          font:{bold:isName||custo, color:{rgb:isName?C.TEAL_DK:custo?C.TOTAL:liq?C.PROV_H:C.TEXT},
+                sz:isName?9:8, name:'Calibri'},
+          fill:{fgColor:{rgb:finalBg},patternType:'solid'},
+          alignment:{horizontal:isNum?'right':'left',vertical:'center'},
+          border:brd('hair','D1DDE6')
+        };
+        if (isNum && val) cell.s.numFmt = 'R$ #,##0.00';
+      }
+    });
+  });
+
+  ws['!freeze'] = {xSplit:5, ySplit:5};
+  XLSX.utils.book_append_sheet(wb, fixCellTypes(ws), '📅 Visão Anual');
+}
+
+function buildAnualMensalSheet(wb, folhas, empresa, ano) {
+  // Aba 2: Resumo mensal consolidado (total por mês)
+  const C = {TEAL_DK:'2C7A72',TEAL_LT:'E8F5F4',SLATE:'4A5A72',WHITE:'FFFFFF',
+             TEXT:'2D3748',TOTAL:'1A4A45',TEAL_XLT:'F4FAFA',TEAL_MD:'3D9E96'};
+  const n = v => Math.round((parseFloat(v)||0)*100)/100;
+  const BRL = v => v ? n(v) : 0;
+  const cfg = DB.config || {};
+  const encP = (cfg.encargos||34.30)/100;
+  const p13P = (cfg.prov13||8.33)/100;
+  const ferP = (cfg.provFerias||8.33)/100;
+  const tercoP = (cfg.provUmTerco||2.78)/100;
+  const fgtsProvP = (cfg.fgtsProv||2.22)/100;
+
+  const mesesNomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  const meses = folhas.map(f => f.competencia).filter(Boolean).sort();
+
+  const rows = [];
+  const metas = [];
+  const R = (d,t) => { rows.push(d); metas.push(t); };
+
+  R(['EQUILIBRYM — RESUMO MENSAL DE CUSTOS ' + ano], 'title');
+  R(['Empresa: '+(empresa?.razao||'TODAS')+' | CNPJ: '+(empresa?.cnpj||'')+' | Ano: '+ano], 'subtitle');
+  R([], 'space');
+  R(['MÊS','COMPETÊNCIA','Nº FUNC.','PROVENTOS','DESCONTOS','LÍQUIDO A PAGAR',
+     'FGTS RECOLHIDO','BENEFÍCIOS','ENC. PATRONAL','PROV. 13º','PROV. FÉRIAS',
+     'PROV. 1/3 FÉRIAS','FGTS S/PROV.','CUSTO TOTAL EMPRESA'], 'header');
+
+  let totProv=0,totDesc=0,totLiq=0,totFgts=0,totBen=0,totEnc=0,totP13=0,totFer=0,totTerco=0,totFgtsP=0,totCusto=0,totFunc=0;
+
+  meses.forEach((mes, i) => {
+    const folha = folhas.find(f => f.competencia === mes);
+    if (!folha) return;
+    const [y, mo] = mes.split('-');
+    const label = (mesesNomes[(parseInt(mo)||1)-1]) + '/' + y;
+    const funcs = folha.funcionarios || [];
+    const nFunc = funcs.length;
+
+    let prov=0,desc=0,liq=0,fgts=0,ben=0,enc=0,p13=0,fer=0,terco=0,fgtsP2=0;
+    funcs.forEach(f => {
+      const sal = n(f.salario);
+      prov += n(f.proventos)||sal;
+      desc += n(f.descontos);
+      liq  += n(f.liquido)||Math.max(0,n(f.proventos)-n(f.descontos));
+      fgts += n(f.fgts);
+      ben  += n((f.vt||0)+(f.vr||0)+(f.va||0)+(f.am||0)+(f.ao||0));
+      enc  += n(sal*encP);
+      p13  += n(sal*p13P);
+      fer  += n(sal*ferP);
+      terco+= n(sal*tercoP);
+      fgtsP2+=n(sal*fgtsProvP);
+    });
+    const custo = n(prov+enc+p13+fer+terco+fgtsP2);
+
+    R([label,mes,nFunc,BRL(prov),BRL(desc),BRL(liq),BRL(fgts),BRL(ben),BRL(enc),BRL(p13),BRL(fer),BRL(terco),BRL(fgtsP2),BRL(custo)],
+      i%2===0?'even':'odd');
+
+    totProv+=prov; totDesc+=desc; totLiq+=liq; totFgts+=fgts; totBen+=ben;
+    totEnc+=enc; totP13+=p13; totFer+=fer; totTerco+=terco; totFgtsP+=fgtsP2;
+    totCusto+=n(custo); totFunc=Math.max(totFunc,nFunc);
+  });
+
+  // Fill missing months with zeros
+  for (let mo=1; mo<=12; mo++) {
+    const key = ano + '-' + String(mo).padStart(2,'0');
+    if (!meses.includes(key)) {
+      const label = mesesNomes[mo-1] + '/' + ano;
+      R([label, key, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'], 'missing');
+    }
+  }
+
+  R([], 'space');
+  R(['TOTAL ANUAL '+ano,'',meses.length+' meses',
+     BRL(totProv),BRL(totDesc),BRL(totLiq),BRL(totFgts),BRL(totBen),
+     BRL(totEnc),BRL(totP13),BRL(totFer),BRL(totTerco),BRL(totFgtsP),BRL(totCusto)
+  ], 'grandtotal');
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:10},{wch:13},{wch:9},{wch:15},{wch:14},{wch:16},{wch:15},{wch:13},{wch:15},{wch:13},{wch:13},{wch:14},{wch:13},{wch:17}];
+  ws['!rows'] = rows.map((_,i) => {
+    const t=metas[i];
+    return t==='title'?{hpt:26}:t==='header'?{hpt:28}:t==='grandtotal'?{hpt:22}:t==='space'?{hpt:5}:{hpt:17};
+  });
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:13}},{s:{r:1,c:0},e:{r:1,c:13}}];
+
+  const sty = (bold,bg,fg,align,border,sz) => ({
+    font:{bold:!!bold,color:{rgb:fg||'FFFFFF'},sz:sz||9,name:'Calibri'},
+    fill:{fgColor:{rgb:bg||C.TEAL_DK},patternType:'solid'},
+    alignment:{horizontal:align||'center',vertical:'center',wrapText:true},
+    border:border?{top:{style:'thin',color:{rgb:'CBD5E0'}},bottom:{style:'thin',color:{rgb:'CBD5E0'}},left:{style:'thin',color:{rgb:'CBD5E0'}},right:{style:'thin',color:{rgb:'CBD5E0'}}}:{}
+  });
+
+  const NUM_COLS_M = new Set([3,4,5,6,7,8,9,10,11,12,13]);
+  rows.forEach((row, ri) => {
+    const t = metas[ri];
+    row.forEach((_,ci) => {
+      const addr = XLSX.utils.encode_cell({r:ri,c:ci});
+      if (!ws[addr]) ws[addr] = {t:'s',v:''};
+      const cell = ws[addr]; const val = cell.v;
+      const isNum = NUM_COLS_M.has(ci);
+      const isCusto = ci===13; const isLiq=ci===5;
+
+      if (t==='title') cell.s = sty(true,C.TEAL_DK,'FFFFFF','left',false,13);
+      else if (t==='subtitle') cell.s = sty(false,C.TEAL_LT,C.TEAL_DK,'left',false,9);
+      else if (t==='header') cell.s = sty(true,C.SLATE,'FFFFFF','center',true,8.5);
+      else if (t==='grandtotal') {
+        cell.s = sty(true,C.TOTAL,'FFFFFF',isNum?'right':'left',true,10);
+        if (isNum&&val&&val!=='-') cell.s.numFmt='R$ #,##0.00';
+      } else if (t==='missing') {
+        cell.s = sty(false,'F5F5F5','AAAAAA','center',true,8);
+      } else if (t==='even'||t==='odd') {
+        const bg = t==='even'?C.TEAL_XLT:C.WHITE;
+        cell.s = {font:{bold:isCusto||isLiq,color:{rgb:isCusto?C.TOTAL:isLiq?'065F46':C.TEXT},sz:9,name:'Calibri'},
+          fill:{fgColor:{rgb:bg},patternType:'solid'},
+          alignment:{horizontal:isNum?'right':'center',vertical:'center'},
+          border:{top:{style:'hair',color:{rgb:'D1DDE6'}},bottom:{style:'hair',color:{rgb:'D1DDE6'}},left:{style:'hair',color:{rgb:'CBD5E0'}},right:{style:'hair',color:{rgb:'CBD5E0'}}}};
+        if (isNum&&val&&val!=='-') cell.s.numFmt='R$ #,##0.00';
+      }
+    });
+  });
+
+  XLSX.utils.book_append_sheet(wb, fixCellTypes(ws), '📆 Resumo Mensal');
+}
+
+function buildAnualDepartSheet(wb, folhas, empresa, ano) {
+  // Aba 3: Custo por departamento ao longo do ano
+  const C = {TEAL_DK:'2C7A72',TEAL_LT:'E8F5F4',SLATE:'4A5A72',WHITE:'FFFFFF',
+             TEXT:'2D3748',TOTAL:'1A4A45',TEAL_XLT:'F4FAFA',TEAL_MD:'3D9E96'};
+  const n = v => Math.round((parseFloat(v)||0)*100)/100;
+  const cfg = DB.config||{};
+  const encP=(cfg.encargos||34.30)/100, p13P=(cfg.prov13||8.33)/100;
+  const ferP=(cfg.provFerias||8.33)/100, tercoP=(cfg.provUmTerco||2.78)/100;
+  const fgtsProvP=(cfg.fgtsProv||2.22)/100;
+  const mesesNomes=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  // Coletar todos os depts
+  const deptSet = new Set();
+  folhas.forEach(f => (f.funcionarios||[]).forEach(func => deptSet.add(func.departamento||'SEM DEPTO')));
+  const depts = [...deptSet].sort();
+
+  const meses = folhas.map(f=>f.competencia).filter(Boolean).sort();
+  const mesesLabels = meses.map(m => {
+    const [y,mo]=m.split('-');
+    return mesesNomes[(parseInt(mo)||1)-1]+'/'+y;
+  });
+
+  // Montar dados: para cada dept, para cada mês: {nFunc, proventos, custo}
+  const deptData = {};
+  depts.forEach(d => { deptData[d] = {}; });
+
+  folhas.forEach(folha => {
+    const mes = folha.competencia;
+    if (!mes) return;
+    const funcsByDept = {};
+    (folha.funcionarios||[]).forEach(f => {
+      const d = f.departamento||'SEM DEPTO';
+      if (!funcsByDept[d]) funcsByDept[d] = [];
+      funcsByDept[d].push(f);
+    });
+    depts.forEach(d => {
+      const funcs = funcsByDept[d] || [];
+      let prov=0, custo=0, fgts=0, liq=0;
+      funcs.forEach(f => {
+        const sal=n(f.salario);
+        prov  += n(f.proventos)||sal;
+        fgts  += n(f.fgts);
+        liq   += n(f.liquido)||Math.max(0,n(f.proventos)-n(f.descontos));
+        const enc=n(sal*encP), p13=n(sal*p13P), fer=n(sal*ferP);
+        const terco=n(sal*tercoP), fgtsP2=n(sal*fgtsProvP);
+        custo += n((n(f.proventos)||sal)+enc+p13+fer+terco+fgtsP2);
+      });
+      deptData[d][mes] = {nFunc:funcs.length, prov, custo, fgts, liq};
+    });
+  });
+
+  const rows = [], metas = [];
+  const R = (d,t) => { rows.push(d); metas.push(t); };
+
+  R(['EQUILIBRYM — CUSTO ANUAL POR DEPARTAMENTO ' + ano], 'title');
+  R(['Empresa: '+(empresa?.razao||'TODAS')+' | CNPJ: '+(empresa?.cnpj||'')+' | Ano: '+ano], 'subtitle');
+  R([], 'space');
+
+  // Header: Dept | Meses (Prov+Custo) | Total Anual
+  const hRow = ['DEPARTAMENTO'];
+  mesesLabels.forEach(ml => { hRow.push(ml); hRow.push(''); hRow.push(''); });
+  hRow.push('TOTAL ANUAL'); hRow.push(''); hRow.push('');
+  R(hRow, 'section');
+
+  const hRow2 = [''];
+  meses.forEach(() => { hRow2.push('Proventos'); hRow2.push('FGTS'); hRow2.push('Custo Total'); });
+  hRow2.push('Proventos'); hRow2.push('FGTS'); hRow2.push('Custo Total');
+  R(hRow2, 'header');
+
+  const GT = {prov:0, fgts:0, custo:0};
+  const GTm = meses.map(()=>({prov:0,fgts:0,custo:0}));
+
+  depts.forEach((dept, di) => {
+    const row = [dept];
+    let totProv=0, totFgts=0, totCusto=0;
+    meses.forEach((mes,mi) => {
+      const d = deptData[dept][mes] || {prov:0,fgts:0,custo:0};
+      row.push(d.prov?n(d.prov):null, d.fgts?n(d.fgts):null, d.custo?n(d.custo):null);
+      totProv+=d.prov||0; totFgts+=d.fgts||0; totCusto+=d.custo||0;
+      GTm[mi].prov+=d.prov||0; GTm[mi].fgts+=d.fgts||0; GTm[mi].custo+=d.custo||0;
+    });
+    row.push(n(totProv), n(totFgts), n(totCusto));
+    GT.prov+=totProv; GT.fgts+=totFgts; GT.custo+=totCusto;
+    R(row, di%2===0?'even':'odd');
+  });
+
+  R([], 'space');
+  const gtRow = ['TOTAL GERAL'];
+  GTm.forEach(m => gtRow.push(n(m.prov),n(m.fgts),n(m.custo)));
+  gtRow.push(n(GT.prov),n(GT.fgts),n(GT.custo));
+  R(gtRow, 'grandtotal');
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const totalC = 1 + meses.length*3 + 3;
+  const cols2 = [{wch:26}];
+  meses.forEach(()=>[14,12,14].forEach(w=>cols2.push({wch:w})));
+  [15,13,15].forEach(w=>cols2.push({wch:w}));
+  ws['!cols'] = cols2;
+  ws['!rows'] = rows.map((_,i)=>{const t=metas[i];return t==='title'?{hpt:26}:t==='section'?{hpt:16}:t==='header'?{hpt:20}:t==='grandtotal'?{hpt:22}:t==='space'?{hpt:5}:{hpt:16};});
+  ws['!merges'] = [
+    {s:{r:0,c:0},e:{r:0,c:totalC-1}},
+    {s:{r:1,c:0},e:{r:1,c:totalC-1}},
+  ];
+  meses.forEach((_,mi)=>{
+    const c=1+mi*3;
+    ws['!merges'].push({s:{r:3,c},e:{r:3,c:c+2}});
+  });
+  ws['!merges'].push({s:{r:3,c:1+meses.length*3},e:{r:3,c:totalC-1}});
+
+  const NUM2 = ci => ci>=1;
+  rows.forEach((row,ri)=>{
+    const t=metas[ri];
+    row.forEach((_,ci)=>{
+      const addr=XLSX.utils.encode_cell({r:ri,c:ci});
+      if (!ws[addr]) ws[addr]={t:'s',v:''};
+      const cell=ws[addr]; const val=cell.v;
+      const isNum=NUM2(ci);
+      const isAnual=ci>=1+meses.length*3;
+      const isCusto=ci>0&&((ci-1)%3===2);
+      const isFgts=ci>0&&((ci-1)%3===1);
+      const brd=(style,c2)=>({top:{style,color:{rgb:c2}},bottom:{style,color:{rgb:c2}},left:{style,color:{rgb:c2}},right:{style,color:{rgb:c2}}});
+
+      if (t==='title') { cell.s={font:{bold:true,color:{rgb:'FFFFFF'},sz:13,name:'Calibri'},fill:{fgColor:{rgb:C.TEAL_DK},patternType:'solid'},alignment:{horizontal:'left',vertical:'center'}}; }
+      else if (t==='subtitle') { cell.s={font:{color:{rgb:C.TEAL_DK},sz:9,name:'Calibri'},fill:{fgColor:{rgb:C.TEAL_LT},patternType:'solid'},alignment:{horizontal:'left',vertical:'center'}}; }
+      else if (t==='section') {
+        const sBg=ci===0?C.SLATE:isAnual?C.TOTAL:(Math.floor((ci-1)/3)%2===0?C.TEAL_DK:'1E5A52');
+        cell.s={font:{bold:true,color:{rgb:'FFFFFF'},sz:9,name:'Calibri'},fill:{fgColor:{rgb:sBg},patternType:'solid'},alignment:{horizontal:'center',vertical:'center'},border:brd('thin','CBD5E0')};
+      } else if (t==='header') {
+        const hBg=ci===0?C.SLATE:isAnual?'2D3B4E':(Math.floor((ci-1)/3)%2===0?C.TEAL_DK:'1E5A52');
+        cell.s={font:{bold:true,color:{rgb:'FFFFFF'},sz:8,name:'Calibri'},fill:{fgColor:{rgb:hBg},patternType:'solid'},alignment:{horizontal:'center',vertical:'center'},border:brd('thin','CBD5E0')};
+      } else if (t==='grandtotal') {
+        cell.s={font:{bold:true,color:{rgb:'FFFFFF'},sz:10,name:'Calibri'},fill:{fgColor:{rgb:C.TOTAL},patternType:'solid'},alignment:{horizontal:isNum?'right':'left',vertical:'center'},border:brd('medium',C.TOTAL)};
+        if (isNum&&val) cell.s.numFmt='R$ #,##0.00';
+      } else if (t==='even'||t==='odd') {
+        const altBg=isAnual?(t==='even'?'E8EFF8':'F0F4FA'):(t==='even'?C.TEAL_XLT:C.WHITE);
+        cell.s={font:{bold:ci===0||isCusto,color:{rgb:ci===0?C.TEAL_DK:isCusto?C.TOTAL:isFgts?'744210':C.TEXT},sz:ci===0?9:8.5,name:'Calibri'},fill:{fgColor:{rgb:altBg},patternType:'solid'},alignment:{horizontal:isNum?'right':'left',vertical:'center'},border:brd('hair','D1DDE6')};
+        if (isNum&&val) cell.s.numFmt='R$ #,##0.00';
+      }
+    });
+  });
+
+  XLSX.utils.book_append_sheet(wb, fixCellTypes(ws), '🏢 Por Departamento');
+}
+
+// ═══════════════════════════════════════════════════════
+// PDF IMPORT — FOLHA DE PAGAMENTO
+// ═══════════════════════════════════════════════════════
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+let pdfParsedData = null;
+
+function handlePdfDrop(e) {
+  e.preventDefault();
+  document.getElementById('pdf-drop-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type === 'application/pdf') handlePdfFile(file);
+  else toast('Por favor, envie um arquivo PDF', 'err');
+}
+
+function handlePdfFile(file) {
+  if (!file) return;
+  pdfLog('📄 Arquivo recebido: ' + file.name);
+  setProgress(5);
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try { await parsePdfPayroll(e.target.result); }
+    catch(err) { pdfLog('❌ Erro ao processar: ' + err.message, 'err'); toast('Erro ao processar PDF', 'err'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function pdfLog(msg, type) {
+  const box = document.getElementById('pdf-log');
+  if (!box) return;
+  const line = document.createElement('div');
+  if (type) line.className = 'log-' + type;
+  line.textContent = msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+function setProgress(pct) {
+  const el = document.getElementById('pdf-progress');
+  if (el) el.style.width = pct + '%';
+}
+
+function normalize(s) {
+  return (s||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+}
+
+function extractFuncionarios(text) {
+  const parseBR = s => {
+    if (!s) return 0;
+    return parseFloat(String(s).replace(/\./g,'').replace(',','.')) || 0;
+  };
+  const re1 = (pat, str) => { const m = str.match(pat); return m ? m[1].trim() : ''; };
+
+  // Mapa de departamentos por posição
+  const ccPositions = [];
+  const ccRe = /C\.Custo:\s*\d+\s*-\s*([^\n]+)/g;
+  let ccm;
+  while ((ccm = ccRe.exec(text)) !== null) {
+    let dept = ccm[1].replace(/\s*(Empresa:|Página:|Sistema).*$/i,'').trim();
+    ccPositions.push({ pos: ccm.index, dept });
+  }
+  const getDept = pos => {
+    let dept = '';
+    for (const { pos: p, dept: d } of ccPositions) { if (p <= pos) dept = d; }
+    return dept;
+  };
+
+  // Extrai rubricas individuais de um chunk
+  const extractRubricas = (chunk) => {
+    const rubricas = [];
+    const rubRe = /(\d{1,5})\s+([A-ZÁÉÍÓÚÀÃÕÇÊ%°(][^\d\n]{2,40}?)\s+([\d:,]+)\s+([\d.,]+)\s*([PD\*])/g;
+    let m;
+    for (const line of chunk.split('\n')) {
+      rubRe.lastIndex = 0;
+      while ((m = rubRe.exec(line)) !== null) {
+        rubricas.push({ code: m[1].trim(), desc: m[2].trim().replace(/\s+/g,' '), qty: m[3].trim(), val: parseBR(m[4]), tipo: m[5].trim() });
+      }
+    }
+    return rubricas;
+  };
+
+  // Dividir em blocos por funcionário
+  const chunks = ('\n' + text).split(/(?=\n(?:Empr\.|Contr):\s*\d+)/)
+    .filter(c => /(?:Empr\.|Contr):\s*\d+/.test(c));
+
+  pdfLog('\uD83D\uDD0E Blocos de funcionários: ' + chunks.length);
+
+  const funcionarios = [];
+
+  for (const chunk of chunks) {
+    if (/Resumo por Rubricas|Líquido Centro de Custo|INSS FGTS, PIS|Total Geral Proventos/.test(chunk.substring(0,200))) continue;
+
+    const hm = chunk.match(/(?:Empr\.|Contr):\s*(\d+)\s*([A-ZÁÉÍÓÚÀÃÕÇÊ][^\n]+?)\s*(?:S[A-Z]?ituação|Situação):\s*(\w+)\s+CPF:\s*([\d.\-/]+)\s+Adm:\s*([\d/]+)/);
+    if (!hm) continue;
+
+    const codigo   = hm[1].trim();
+    let   nome     = hm[2].trim();
+    nome = nome.replace(/[A-Z]{1,3}ituação$/i,'').trim() || nome;
+    const situacao = hm[3].trim();
+    const cpf      = hm[4].trim();
+    const admissao = hm[5].trim();
+    const isDir    = /^Contr:/.test(chunk.trim());
+
+    const vm = chunk.match(/Vínculo:\s*(.+?)\s+CC:/);
+    let vinculo = vm ? vm[1].trim() : (isDir ? 'Diretor' : 'Celetista');
+    if (isDir) vinculo = 'Diretor';
+
+    const ccNum = re1(/CC:\s*(\d+)/, chunk);
+    const cm = chunk.match(/Cargo:\s*\d*\s*([A-ZÁÉÍÓÚÀÃÕÇÊ(][^\n]+?)\s+C\.B\.O/);
+    const cargo = cm ? cm[1].trim() : '';
+    const cbo = re1(/C\.B\.O:\s*(\d+)/, chunk);
+    const horasMes = re1(/Horas\s*Mês:\s*([\d,]*)/, chunk);
+    const salario = parseBR(re1(/Salário:\s*([\d.,]+)/, chunk));
+
+    let proventos = 0, descontos = 0, liquido = 0;
+    const pmA = chunk.match(/Proventos:\s*([\d.,]+)\s+Descontos:\s*([\d.,]+)[^\n]*Líquido:\s*([\d.,]+)/);
+    if (pmA) { proventos=parseBR(pmA[1]); descontos=parseBR(pmA[2]); liquido=parseBR(pmA[3]); }
+    else {
+      const provM=chunk.match(/Proventos:\s*([\d.,]+)/), descM=chunk.match(/Descontos:\s*([\d.,]+)/), liqM=chunk.match(/Líquido:\s*([\d.,]+)/);
+      if (provM) proventos=parseBR(provM[1]);
+      if (descM) descontos=parseBR(descM[1]);
+      if (liqM)  liquido=parseBR(liqM[1]);
+      if (!liquido && proventos) liquido = Math.max(0, proventos - descontos);
+    }
+
+    const infoM = chunk.match(/Informativa:\s*([\d.,]+)/);
+    const informativa = infoM ? parseBR(infoM[1]) : 0;
+    const baseInss = parseBR(re1(/Base INSS:\s*([\d.,]+)/, chunk));
+    const fgts     = parseBR(re1(/Valor FGTS:\s*([\d.,]+)/, chunk));
+    const baseIrrf = parseBR(re1(/Base IRRF:\s*(-?[\d.,]+)/, chunk));
+
+    const rubricas_detalhe = extractRubricas(chunk);
+
+    const getRub = (codes) => {
+      const ca = Array.isArray(codes)?codes:[codes];
+      const f = rubricas_detalhe.find(r => ca.includes(r.code) && r.tipo==='P');
+      return f ? f.val : 0;
+    };
+    const sumRub = (codes, tipo) => {
+      const ca = Array.isArray(codes)?codes:[codes];
+      return rubricas_detalhe.filter(r=>ca.includes(r.code)&&(!tipo||r.tipo===tipo)).reduce((s,r)=>s+r.val,0);
+    };
+
+    const he      = getRub(['211','209']);
+    const dsr     = getRub(['250']);
+    const insalub = getRub(['15']);
+    const salFam  = getRub(['995','224']);
+    const bolsa   = getRub(['8797','8813']);
+    const inss_desc = sumRub(['998','812','821','826','989'],'D');
+    const adiant    = sumRub(['981','980'],'D');
+    const vt_desc   = sumRub(['201','206','48'],'D');
+
+    const vt = parseBR(re1(/(?:234|233)\s+VALOR DE COMPRA DE VT\s+([\d.,]+)/, chunk));
+    const vr = parseBR(re1(/235\s+VALOR DE COMPRA DE VR\s+([\d.,]+)/, chunk));
+    const va = parseBR(re1(/239\s+VALOR DE COMPRA DE VA\s+([\d.,]+)/, chunk));
+    const am = parseBR(re1(/237\s+VALOR DE COMPRA DE AM\s+([\d.,]+)/, chunk));
+    const ao = parseBR(re1(/238\s+VALOR DE COMPRA DE ASSIST[^\d]+([\d.,]+)/, chunk));
+
+    const rawChunk = chunk.replace(/^\n/, '');
+    const pos = text.indexOf(rawChunk.substring(0, 60));
+    const departamento = getDept(pos < 0 ? 0 : pos);
+
+    funcionarios.push({
+      codigo, nome, cpf, situacao, admissao, vinculo,
+      cc: ccNum, cargo, cbo, horasMes,
+      salario, proventos, descontos, liquido, informativa,
+      baseInss, fgts, baseIrrf,
+      he, dsr, insalub, salFam, bolsa,
+      inss_desc, adiant, vt_desc,
+      vt, vr, va, am, ao,
+      departamento,
+      rubricas_detalhe
+    });
+  }
+
+  return funcionarios;
+}
+
+
+async function parsePdfPayroll(arrayBuffer) {
+  pdfLog('📖 Lendo PDF...');
+  setProgress(10);
+
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  pdfLog('📃 Total de páginas: ' + pdf.numPages);
+  setProgress(20);
+
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+
+    // Reconstruct lines using Y coordinate
+    const lineMap = new Map();
+    for (const item of tc.items) {
+      if (!item.str || !item.str.trim()) continue;
+      const y = Math.round(item.transform[5]);
+      const x = item.transform[4];
+      if (!lineMap.has(y)) lineMap.set(y, []);
+      lineMap.get(y).push({ x, str: item.str });
+    }
+    const sortedYs = [...lineMap.keys()].sort((a, b) => b - a);
+    for (const y of sortedYs) {
+      const items = lineMap.get(y).sort((a, b) => a.x - b.x);
+      const lineText = items.map(it => it.str).join(' ');
+      if (lineText.trim()) fullText += lineText + '\n';
+    }
+    setProgress(20 + Math.floor(60 * i / pdf.numPages));
+  }
+
+  const lines = fullText.split('\n').filter(l => l.trim());
+  pdfLog('📝 ' + lines.length + ' linhas extraídas');
+  const emprLine = lines.find(l => /Empr\.:|Contr:/.test(l));
+  if (emprLine) pdfLog('✔ Ex: ' + emprLine.substring(0, 80));
+
+  pdfLog('🔍 Extraindo dados dos funcionários...');
+  setProgress(85);
+
+  const funcionarios = extractFuncionarios(fullText);
+  pdfLog('✅ ' + funcionarios.length + ' funcionário(s) extraído(s)');
+
+  if (!funcionarios.length) {
+    pdfLog('⚠️ Nenhum funcionário encontrado. Verifique se é um Extrato Mensal válido.', 'warn');
+    toast('Nenhum funcionário encontrado no PDF', 'warn');
+    return;
+  }
+
+  pdfParsedData = { funcionarios, rawText: fullText };
+  setProgress(100);
+  showPdfPreview(funcionarios);
+}
+
+function showPdfPreview(funcionarios) {
+  const card = document.getElementById('card-pdf-preview');
+  if (card) card.style.display = '';
+
+  const byDepto = {};
+  funcionarios.forEach(f => {
+    const d = f.departamento || 'SEM DEPTO';
+    if (!byDepto[d]) byDepto[d] = [];
+    byDepto[d].push(f);
+  });
+
+  let html = '';
+  Object.entries(byDepto).forEach(([depto, funcs]) => {
+    html += `<div style="margin-bottom:16px">
+      <div style="font-weight:700;font-size:.85rem;color:var(--teal-dk);margin-bottom:8px;padding:6px 10px;background:var(--teal-lt);border-radius:6px">
+        📂 ${depto} (${funcs.length} funcionário(s))
+      </div>`;
+    funcs.forEach(f => {
+      html += `<div style="display:flex;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--border);font-size:.82rem">
+        <div>
+          <strong>${f.nome}</strong>
+          <span style="color:var(--muted);margin-left:8px">${f.cargo || '-'}</span>
+          <span class="status ${f.situacao==='Trabalhando'?'status-ok':f.situacao==='Demitido'?'status-dem':'status-dir'}" style="margin-left:8px">${f.situacao}</span>
+        </div>
+        <div style="text-align:right;font-size:.8rem">
+          Sal: ${fmtBRL(f.salario)} | Prov: ${fmtBRL(f.proventos)} | Líq: ${fmtBRL(f.liquido)}
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+
+  const el = document.getElementById('pdf-preview-content');
+  if (el) el.innerHTML = html;
+  pdfLog('📋 Pré-visualização pronta. Confirme para salvar.');
+}
+
+function confirmPdfImport() {
+  const empId       = document.getElementById('pdf-empresa-sel').value;
+  const competencia = document.getElementById('pdf-competencia').value;
+  if (!empId)       { toast('Selecione uma empresa', 'warn'); return; }
+  if (!competencia) { toast('Informe a competência', 'warn'); return; }
+  if (!pdfParsedData) { toast('Nenhum dado para importar', 'err'); return; }
+
+  const empresa = DB.empresas.find(e => e.id === empId);
+  let created = 0, updated = 0;
+
+  pdfParsedData.funcionarios.forEach(f => {
+    let existing = DB.funcionarios.find(x => x.cpf && x.cpf === f.cpf);
+    if (!existing) existing = DB.funcionarios.find(x =>
+      normalize(x.nome) === normalize(f.nome) && x.empresaId === empId
+    );
+
+    const obj = {
+      id: existing?.id || uid(),
+      nome: f.nome, cpf: f.cpf,
+      empresaId: empId, empresaNome: empresa?.razao,
+      departamento: f.departamento, cargo: f.cargo,
+      salario: f.salario, situacao: f.situacao, vinculo: f.vinculo,
+      admissao: f.admissao, cc: f.cc, cbo: f.cbo,
+      vt: existing?.vt || f.vt || 0,
+      vr: existing?.vr || f.vr || 0,
+      va: existing?.va || f.va || 0,
+      am: existing?.am || f.am || 0,
+      ao: existing?.ao || f.ao || 0
+    };
+
+    if (existing) {
+      const idx = DB.funcionarios.findIndex(x => x.id === existing.id);
+      DB.funcionarios[idx] = { ...existing, ...obj };
+      updated++;
+    } else {
+      DB.funcionarios.push(obj);
+      created++;
+    }
+
+    // Auto-criar departamento se não existir
+    if (f.departamento && !DB.departamentos.find(d =>
+      d.empresaId === empId && d.nome.toUpperCase() === f.departamento.toUpperCase()
+    )) {
+      DB.departamentos.push({ id: uid(), empresaId: empId, nome: f.departamento, codigo: f.cc || '', responsavel: '' });
+    }
+  });
+
+  // Salvar folha
+  const folhaIdx = DB.folhas.findIndex(fl => fl.empresaId === empId && fl.competencia === competencia);
+  const folha = {
+    id: uid(), empresaId: empId, empresaNome: empresa?.razao,
+    competencia, importadoEm: new Date().toLocaleString('pt-BR'),
+    funcionarios: pdfParsedData.funcionarios
+  };
+  if (folhaIdx >= 0) DB.folhas[folhaIdx] = folha;
+  else DB.folhas.push(folha);
+
+  saveDB();
+  pdfLog('✅ Importação concluída! ' + created + ' criados, ' + updated + ' atualizados.');
+  toast('Importação concluída! ' + (created + updated) + ' funcionários.');
+
+  const card = document.getElementById('card-pdf-preview');
+  if (card) card.style.display = 'none';
+  pdfParsedData = null;
+  renderDashboard();
+  renderFolhasHistorico();
+  updateAllSelects();
+}
+
+function cancelPdfImport() {
+  pdfParsedData = null;
+  const card = document.getElementById('card-pdf-preview');
+  if (card) card.style.display = 'none';
+  pdfLog('❌ Importação cancelada.');
+}
+
+// ═══════════════════════════════════════════════════════
+// RUBRICAS (XLSX BENEFÍCIOS)
+// ═══════════════════════════════════════════════════════
+
+let rubricaParsed = null;
+
+function handleRubricaDrop(e) {
+  e.preventDefault();
+  document.getElementById('rubrica-drop-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleRubricaFile(file);
+}
+
+function handleRubricaFile(file) {
+  if (!file) return;
+  rubricaLog('📊 Arquivo: ' + file.name);
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      rubricaLog('📋 ' + data.length + ' linhas lidas');
+      parseRubricas(data);
+    } catch(err) { rubricaLog('❌ Erro: ' + err.message, 'err'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function rubricaLog(msg, type) {
+  const box = document.getElementById('rubrica-log');
+  if (!box) return;
+  const line = document.createElement('div');
+  if (type) line.className = 'log-' + type;
+  line.textContent = msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+function parseRubricas(data) {
+  // Encontrar linha de cabeçalho
+  let headerRow = -1;
+  for (let i = 0; i < Math.min(data.length, 15); i++) {
+    const row = (data[i] || []).join(' ');
+    if (/Colaboradores|Nome dos|CPF|NOME/i.test(row)) { headerRow = i + 1; break; }
+  }
+  if (headerRow < 0) { headerRow = 10; rubricaLog('⚠️ Cabeçalho não encontrado, usando linha 10', 'warn'); }
+  rubricaLog('📍 Dados a partir da linha ' + (headerRow + 1));
+
+  const results = [];
+  const parseVal = v => { if (!v && v !== 0) return 0; const n = parseFloat(String(v).replace(',','.')); return isNaN(n) ? 0 : n; };
+
+  for (let i = headerRow; i < data.length; i++) {
+    const row = data[i];
+    if (!row || row.length < 3) continue;
+    const nome = String(row[2] || '').trim();
+    const cpf  = String(row[3] || '').trim();
+    if (!nome || nome.length < 3) continue;
+
+    results.push({
+      nome: nome.toUpperCase(), cpf,
+      codigo: String(row[1] || '').trim(),
+      vt:         parseVal(row[4]),
+      combustivel: parseVal(row[5]),
+      vr:         parseVal(row[6]),
+      va:         parseVal(row[7]),
+      am:         parseVal(row[8]),
+      ao:         parseVal(row[9])
+    });
+  }
+
+  rubricaLog('✅ ' + results.length + ' colaboradores encontrados');
+  rubricaParsed = results;
+
+  // Preview
+  const card = document.getElementById('card-rubrica-preview');
+  if (card) card.style.display = '';
+  const container = document.getElementById('rubrica-preview-content');
+  if (container) {
+    container.innerHTML = `
+      <table>
+        <thead><tr><th>Nome</th><th>CPF</th><th class="td-num">VT</th><th class="td-num">VR</th><th class="td-num">VA</th><th class="td-num">AM</th><th class="td-num">AO</th></tr></thead>
+        <tbody>
+          ${results.map(r => `<tr>
+            <td class="text-bold">${r.nome}</td>
+            <td style="color:var(--muted);font-size:.78rem">${r.cpf}</td>
+            <td class="td-num">${fmtBRL(r.vt)}</td>
+            <td class="td-num">${fmtBRL(r.vr)}</td>
+            <td class="td-num">${fmtBRL(r.va)}</td>
+            <td class="td-num">${fmtBRL(r.am)}</td>
+            <td class="td-num">${fmtBRL(r.ao)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+}
+
+function confirmRubricaImport() {
+  if (!rubricaParsed) { toast('Nenhuma rubrica carregada', 'err'); return; }
+  let vinculados = 0, naoEncontrados = 0;
+
+  rubricaParsed.forEach(r => {
+    let func = DB.funcionarios.find(f => f.cpf && f.cpf.replace(/\D/g,'') === r.cpf.replace(/\D/g,''));
+    if (!func) func = DB.funcionarios.find(f => normalize(f.nome) === normalize(r.nome));
+
+    if (func) {
+      const idx = DB.funcionarios.findIndex(f => f.id === func.id);
+      DB.funcionarios[idx] = {
+        ...func,
+        vt: r.vt || r.combustivel || func.vt || 0,
+        vr: r.vr || func.vr || 0,
+        va: r.va || func.va || 0,
+        am: r.am || func.am || 0,
+        ao: r.ao || func.ao || 0
+      };
+      vinculados++;
+    } else {
+      rubricaLog('⚠️ Não encontrado: ' + r.nome, 'warn');
+      naoEncontrados++;
+    }
+  });
+
+  // Salvar no histórico
+  const empIdR = document.getElementById('rubrica-empresa-sel').value;
+  const compR  = document.getElementById('rubrica-competencia').value;
+  const empR   = DB.empresas.find(e => e.id === empIdR);
+  if (!DB.rubricasHistorico) DB.rubricasHistorico = [];
+  DB.rubricasHistorico = DB.rubricasHistorico.filter(r => !(r.empresaId === empIdR && r.competencia === compR));
+  DB.rubricasHistorico.push({
+    id: uid(), empresaId: empIdR, empresaNome: empR?.razao || '',
+    competencia: compR, total: rubricaParsed.length,
+    importadoEm: new Date().toLocaleString('pt-BR')
+  });
+
+  saveDB();
+  rubricaLog('✅ ' + vinculados + ' vinculados, ' + naoEncontrados + ' não encontrados');
+  toast(vinculados + ' benefícios vinculados!');
+  rubricaParsed = null;
+  const card = document.getElementById('card-rubrica-preview');
+  if (card) card.style.display = 'none';
+  renderRubricasHistorico();
+}
+
+
+// ═══════════════════════════════════════════════════════
+// BACKUP
+// ═══════════════════════════════════════════════════════
+function exportBackup() {
+  const json = JSON.stringify(DB, null, 2);
+  downloadText(json, `backup_equilibrym_${new Date().toISOString().slice(0,10)}.json`, 'application/json');
+  toast('Backup exportado!');
+}
+
+function importBackup(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (confirm(`Isso substituirá todos os dados atuais. Continuar?\n\nEmpresas: ${data.empresas?.length || 0}\nFuncionários: ${data.funcionarios?.length || 0}`)) {
+        DB = { ...DB, ...data };
+        saveDB();
+        toast('Backup restaurado!');
+        renderDashboard();
+      }
+    } catch(err) {
+      toast('Arquivo inválido: ' + err.message, 'err');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function resetAll() {
+  if (!confirm('⚠️ ATENÇÃO: Isso apagará TODOS os dados. Tem certeza?')) return;
+  if (!confirm('Última confirmação: apagar tudo?')) return;
+  localStorage.removeItem('equilibrym_folha_db');
+  location.reload();
+}
+
+function downloadText(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function showGithubInstructions() {
+  const el = document.getElementById('github-instructions');
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+// ═══════════════════════════════════════════════════════
+// HISTORICO DE UPLOADS
+// ═══════════════════════════════════════════════════════
+function renderFolhasHistorico() {
+  const container = document.getElementById('folhas-historico');
+  const countEl = document.getElementById('folhas-count');
+  if (!container) return;
+
+  const folhas = DB.folhas || [];
+  if (countEl) countEl.textContent = folhas.length + ' folha(s)';
+
+  if (!folhas.length) {
+    container.innerHTML = '<p class="text-muted" style="font-size:.85rem">Nenhuma folha importada ainda.</p>';
+    return;
+  }
+
+  container.innerHTML = folhas.map((f, i) => {
+    const empresa = DB.empresas.find(e => e.id === f.empresaId);
+    return `
+    <div style="background:var(--slate-lt);border-radius:8px;padding:12px 14px;margin-bottom:10px;border:1.5px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:.88rem;color:var(--teal-dk)">📄 ${f.competencia || '-'}</div>
+          <div style="font-size:.8rem;color:var(--text);margin-top:2px">${empresa?.razao || f.empresaNome || '-'}</div>
+          <div style="font-size:.76rem;color:var(--muted);margin-top:3px">
+            👥 ${f.funcionarios?.length || 0} funcionários &nbsp;·&nbsp; 
+            🕒 ${f.importadoEm || '-'}
+          </div>
+          <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+            <span class="status status-ok">${(f.funcionarios||[]).filter(x=>x.situacao==='Trabalhando').length} ativos</span>
+            <span class="status status-dem">${(f.funcionarios||[]).filter(x=>x.situacao==='Demitido').length} demitidos</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+          <button class="btn btn-danger btn-sm" onclick="deleteFolha('${f.id}')" title="Excluir este upload">
+            🗑 Excluir
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="reimportarFolha('${f.id}')" title="Ver detalhes">
+            👁 Ver
+          </button>
+        </div>
+      </div>
+    </div>`;
+  }).reverse().join(''); // most recent first
+}
+
+function deleteFolha(id) {
+  const folha = DB.folhas.find(f => f.id === id);
+  if (!folha) return;
+  const msg = `Excluir folha de ${folha.competencia}?
+
+Isso irá remover o registro desta importação. Os funcionários cadastrados serão mantidos.`;
+  if (!confirm(msg)) return;
+
+  DB.folhas = DB.folhas.filter(f => f.id !== id);
+  saveDB();
+  renderFolhasHistorico();
+  renderDashboard();
+  toast('Folha excluída!');
+}
+
+function reimportarFolha(id) {
+  const folha = DB.folhas.find(f => f.id === id);
+  if (!folha) return;
+  // Show the funcionarios of this folha in a quick view
+  const nomes = (folha.funcionarios || []).map(f => `${f.nome} — ${f.departamento || '-'} — ${f.situacao}`).join('\n');
+  alert(`Folha: ${folha.competencia}
+Empresa: ${folha.empresaNome}
+Funcionários (${folha.funcionarios?.length || 0}):
+
+${nomes.substring(0, 2000)}`);
+}
+
+function renderRubricasHistorico() {
+  const container = document.getElementById('rubricas-historico');
+  const countEl = document.getElementById('rubricas-count');
+  if (!container) return;
+
+  const historico = DB.rubricasHistorico || [];
+  if (countEl) countEl.textContent = historico.length + ' importação(ões)';
+
+  if (!historico.length) {
+    container.innerHTML = '<p class="text-muted" style="font-size:.85rem">Nenhuma rubrica importada ainda.</p>';
+    return;
+  }
+
+  container.innerHTML = historico.map((r, i) => {
+    const empresa = DB.empresas.find(e => e.id === r.empresaId);
+    return `
+    <div style="background:var(--slate-lt);border-radius:8px;padding:12px 14px;margin-bottom:10px;border:1.5px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:.88rem;color:var(--teal-dk)">📊 ${r.competencia || '-'}</div>
+          <div style="font-size:.8rem;color:var(--text);margin-top:2px">${empresa?.razao || r.empresaNome || '-'}</div>
+          <div style="font-size:.76rem;color:var(--muted);margin-top:3px">
+            👥 ${r.total || 0} colaboradores &nbsp;·&nbsp; 
+            🕒 ${r.importadoEm || '-'}
+          </div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteRubrica('${r.id}')" title="Excluir este upload">
+          🗑 Excluir
+        </button>
+      </div>
+    </div>`;
+  }).reverse().join('');
+}
+
+function deleteRubrica(id) {
+  const item = (DB.rubricasHistorico || []).find(r => r.id === id);
+  if (!item) return;
+  const msg = `Excluir importação de rubricas de ${item.competencia}?
+
+Os benefícios já vinculados aos funcionários serão mantidos. Apenas o registro do upload será removido.`;
+  if (!confirm(msg)) return;
+
+  DB.rubricasHistorico = (DB.rubricasHistorico || []).filter(r => r.id !== id);
+  saveDB();
+  renderRubricasHistorico();
+  toast('Rubrica excluída do histórico!');
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+loadDB();
+loadConfig();
+renderDashboard();
+// Popular todos os selects de empresa assim que carrega
+updateAllSelects();
+populatePdfSelects();
+populateRubricaSelects();
+populateExpFilters();
+// Render historico on load so data shows immediately when navigating
+setTimeout(() => { renderFolhasHistorico(); renderRubricasHistorico(); }, 100);
+
+// Pre-load demo empresa if empty
+if (DB.empresas.length === 0) {
+  DB.empresas.push({
+    id: uid(),
+    razao: 'LONGHI SERVICOS DE TERCEIRIZACAO A EMPRESAS LTDA',
+    cnpj: '54.188.772/0001-28',
+    codigo: '207',
+    contato: ''
+  });
+  DB.departamentos.push(
+    { id: uid(), empresaId: DB.empresas[0].id, nome: 'VILA MARIANA', codigo: '2', responsavel: '' },
+    { id: uid(), empresaId: DB.empresas[0].id, nome: 'PERDIZES', codigo: '3', responsavel: '' },
+    { id: uid(), empresaId: DB.empresas[0].id, nome: 'TATUAPE', codigo: '4', responsavel: '' },
+    { id: uid(), empresaId: DB.empresas[0].id, nome: 'SAC', codigo: '5', responsavel: '' },
+    { id: uid(), empresaId: DB.empresas[0].id, nome: 'APOIO', codigo: '6', responsavel: '' }
+  );
+  saveDB();
+  renderDashboard();
+  updateAllSelects();
+}
+
+document.getElementById('header-empresa-badge').style.display = '';
+document.getElementById('header-empresa-badge').textContent = DB.empresas[0]?.razao || '';
+</script>
+</body>
+</html>
