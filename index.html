@@ -357,6 +357,7 @@
       <h2>👥 Funcionários</h2>
       <div class="gap-8">
         <button class="btn btn-success btn-sm" onclick="exportFuncCSV()">⬇️ Exportar Excel</button>
+        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-zerar-beneficios')" title="Zerar benefícios de uma empresa">🗑️ Zerar Benefícios</button>
         <button class="btn btn-primary btn-sm" onclick="openModal('modal-func')">➕ Adicionar</button>
       </div>
     </div>
@@ -842,6 +843,46 @@
   </div>
 </div>
 
+<!-- Modal Zerar Benefícios -->
+<div class="modal-overlay" id="modal-zerar-beneficios">
+  <div class="modal">
+    <h3>🗑️ Zerar Benefícios</h3>
+    <div class="alert alert-warn" style="margin-bottom:16px">
+      <span>⚠️</span>
+      <span>Esta ação vai zerar os valores de <strong>VT, VR, VA, AM e AO</strong> de todos os funcionários selecionados. Não pode ser desfeita.</span>
+    </div>
+    <div class="form-group">
+      <label>Empresa</label>
+      <select id="zerar-empresa-sel">
+        <option value="">— Todas as empresas —</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Departamento</label>
+      <select id="zerar-depto-sel">
+        <option value="">— Todos os departamentos —</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Vínculo</label>
+      <select id="zerar-vinculo-sel">
+        <option value="">— Todos os vínculos —</option>
+        <option value="Celetista">Celetista</option>
+        <option value="Estagiário">Estagiário</option>
+        <option value="Diretor">Diretor</option>
+      </select>
+    </div>
+    <div id="zerar-preview" style="margin-top:12px;padding:12px;background:var(--slate-lt);border-radius:8px;font-size:.85rem;display:none">
+      <strong id="zerar-count"></strong>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-zerar-beneficios')">Cancelar</button>
+      <button class="btn btn-secondary" onclick="previewZerarBeneficios()">👁 Ver funcionários</button>
+      <button class="btn btn-danger" onclick="confirmarZerarBeneficios()">🗑️ Zerar agora</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast"></div>
 
@@ -933,6 +974,7 @@ function openModal(id) {
   // populate empresa dropdowns in modals
   if (id === 'modal-depto') populateModalEmpresaDropdowns();
   if (id === 'modal-func') { populateModalEmpresaDropdowns(); updateFuncDeptos(); }
+  if (id === 'modal-zerar-beneficios') openModalZerarBeneficios();
 }
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
@@ -3493,6 +3535,113 @@ function confirmRubricaImport() {
   const card = document.getElementById('card-rubrica-preview');
   if (card) card.style.display = 'none';
   renderRubricasHistorico();
+}
+
+
+// ═══════════════════════════════════════════════════════
+// ZERAR BENEFÍCIOS
+// ═══════════════════════════════════════════════════════
+
+function openModalZerarBeneficios() {
+  // Popular selects do modal
+  const empSel = document.getElementById('zerar-empresa-sel');
+  if (empSel) {
+    empSel.innerHTML = '<option value="">— Todas as empresas —</option>' +
+      DB.empresas.map(e => `<option value="${e.id}">${e.razao}</option>`).join('');
+    empSel.addEventListener('change', updateZerarDeptos);
+  }
+  updateZerarDeptos();
+  document.getElementById('zerar-preview').style.display = 'none';
+}
+
+function updateZerarDeptos() {
+  const empId = document.getElementById('zerar-empresa-sel')?.value || '';
+  const deptos = [...new Set(
+    DB.funcionarios
+      .filter(f => !empId || f.empresaId === empId)
+      .map(f => f.departamento)
+      .filter(Boolean)
+  )].sort();
+
+  const sel = document.getElementById('zerar-depto-sel');
+  if (sel) {
+    sel.innerHTML = '<option value="">— Todos os departamentos —</option>' +
+      deptos.map(d => `<option value="${d}">${d}</option>`).join('');
+  }
+  document.getElementById('zerar-preview').style.display = 'none';
+}
+
+function getFuncsParaZerar() {
+  const empId   = document.getElementById('zerar-empresa-sel')?.value || '';
+  const depto   = document.getElementById('zerar-depto-sel')?.value || '';
+  const vinculo = document.getElementById('zerar-vinculo-sel')?.value || '';
+
+  return DB.funcionarios.filter(f => {
+    if (empId   && f.empresaId   !== empId)  return false;
+    if (depto   && f.departamento !== depto)  return false;
+    if (vinculo && f.vinculo      !== vinculo) return false;
+    // Só mostra quem tem pelo menos um benefício
+    return (f.vt||0)+(f.vr||0)+(f.va||0)+(f.am||0)+(f.ao||0) > 0;
+  });
+}
+
+function previewZerarBeneficios() {
+  const funcs = getFuncsParaZerar();
+  const preview = document.getElementById('zerar-preview');
+  const count   = document.getElementById('zerar-count');
+
+  if (!funcs.length) {
+    preview.style.display = '';
+    count.innerHTML = '✅ Nenhum funcionário com benefícios encontrado para os filtros selecionados.';
+    return;
+  }
+
+  preview.style.display = '';
+  count.innerHTML = `<span style="color:var(--danger)">⚠️ ${funcs.length} funcionário(s) terão os benefícios zerados:</span><br><br>` +
+    funcs.map(f =>
+      `<div style="padding:3px 0;border-bottom:1px solid var(--border);font-size:.82rem">
+        <strong>${f.nome}</strong>
+        <span style="color:var(--muted);margin-left:6px">${f.departamento||'-'}</span>
+        <span style="float:right;color:var(--danger)">
+          VT:${fmtBRL(f.vt)} VR:${fmtBRL(f.vr)} VA:${fmtBRL(f.va)} AM:${fmtBRL(f.am)}
+        </span>
+      </div>`
+    ).join('');
+}
+
+function confirmarZerarBeneficios() {
+  const funcs = getFuncsParaZerar();
+
+  if (!funcs.length) {
+    toast('Nenhum funcionário com benefícios encontrado.', 'warn');
+    return;
+  }
+
+  const empId   = document.getElementById('zerar-empresa-sel')?.value || '';
+  const depto   = document.getElementById('zerar-depto-sel')?.value || '';
+  const empresa = DB.empresas.find(e => e.id === empId);
+
+  const msg = `Zerar benefícios de ${funcs.length} funcionário(s)` +
+    (empresa ? ` da empresa "${empresa.razao}"` : '') +
+    (depto ? ` / depto "${depto}"` : '') + '?\n\nEsta ação não pode ser desfeita.';
+
+  if (!confirm(msg)) return;
+
+  // Zerar
+  funcs.forEach(f => {
+    const idx = DB.funcionarios.findIndex(x => x.id === f.id);
+    if (idx >= 0) {
+      DB.funcionarios[idx] = { ...DB.funcionarios[idx], vt: 0, vr: 0, va: 0, am: 0, ao: 0 };
+    }
+  });
+
+  saveDB();
+  closeModal('modal-zerar-beneficios');
+  renderFuncionarios();
+  toast(`✅ Benefícios zerados de ${funcs.length} funcionário(s)!`);
+
+  // Resetar preview
+  document.getElementById('zerar-preview').style.display = 'none';
 }
 
 
