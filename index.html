@@ -2364,7 +2364,13 @@ function buildResumoSheet(wb, funcs, empresa, competencia) {
     byD[d].count++;
     byD[d].sal  +=n2(f.salario);
     byD[d].prov +=(n2(f.proventos)||n2(f.salario));
-    byD[d].ben  +=n2(f.vt)+n2(f.vr)+n2(f.va)+n2(f.am)+n2(f.ao);
+    // Busca benefícios do cadastro do funcionário
+    const fCad = DB.funcionarios.find(x =>
+      (x.cpf && x.cpf === f.cpf) || normalize(x.nome) === normalize(f.nome)
+    );
+    byD[d].ben += fCad
+      ? n2((fCad.vt||0)+(fCad.vr||0)+(fCad.va||0)+(fCad.am||0)+(fCad.ao||0))
+      : n2((f.vt||0)+(f.vr||0)+(f.va||0)+(f.am||0)+(f.ao||0));
     byD[d].fgts +=n2(f.fgts);
     byD[d].liq  +=(n2(f.liquido)||Math.max(0,n2(f.proventos)-n2(f.descontos)));
   });
@@ -2559,7 +2565,14 @@ function buildAnualSheet(wb, folhas, empresa, ano) {
           const desc  = n(fd.descontos);
           const liq   = n(fd.liquido) || Math.max(0, prov - desc);
           const fgts  = n(fd.fgts);
-          const ben   = n((fd.vt||0)+(fd.vr||0)+(fd.va||0)+(fd.am||0)+(fd.ao||0));
+          // Busca benefícios do cadastro do funcionário (já zerados/atualizados pelo usuário)
+          const funcCad = DB.funcionarios.find(x =>
+            (x.cpf && x.cpf === func.cpf) ||
+            normalize(x.nome) === normalize(func.nome)
+          );
+          const ben = funcCad
+            ? n((funcCad.vt||0)+(funcCad.vr||0)+(funcCad.va||0)+(funcCad.am||0)+(funcCad.ao||0))
+            : n((fd.vt||0)+(fd.vr||0)+(fd.va||0)+(fd.am||0)+(fd.ao||0));
           const enc   = n(sal * encP);
           const p13   = n(sal * p13P);
           const fer   = n(sal * ferP);
@@ -2824,7 +2837,13 @@ function buildAnualMensalSheet(wb, folhas, empresa, ano) {
       desc += n(f.descontos);
       liq  += n(f.liquido)||Math.max(0,n(f.proventos)-n(f.descontos));
       fgts += n(f.fgts);
-      ben  += n((f.vt||0)+(f.vr||0)+(f.va||0)+(f.am||0)+(f.ao||0));
+      // Busca benefícios do cadastro do funcionário
+      const funcCad2 = DB.funcionarios.find(x =>
+        (x.cpf && x.cpf === f.cpf) || normalize(x.nome) === normalize(f.nome)
+      );
+      ben += funcCad2
+        ? n((funcCad2.vt||0)+(funcCad2.vr||0)+(funcCad2.va||0)+(funcCad2.am||0)+(funcCad2.ao||0))
+        : n((f.vt||0)+(f.vr||0)+(f.va||0)+(f.am||0)+(f.ao||0));
       enc  += n(sal*encP);
       p13  += n(sal*p13P);
       fer  += n(sal*ferP);
